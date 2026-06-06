@@ -530,6 +530,19 @@ function getStackBlocks(root){
   return arr;
 }
 
+/** Build a human-readable description of a block, substituting field values into the label */
+function buildBlockDesc(b){
+  let label=b.def.label;
+  let argIdx=0;
+  const args=b.def.args||[];
+  for(const a of args){
+    const val=b.fields[a.key]!==undefined?b.fields[a.key]:a.def;
+    label=label.replace('%'+(argIdx+1),String(val));
+    argIdx++;
+  }
+  return label;
+}
+
 /** Compute rendered vertical extent of a single block (px) from its CSS `top` position.
  *  Non-hat: shoulders(8) + body + bump(8) = body+16
  *  Hat:       body + bump(8)               = body+8
@@ -1099,7 +1112,48 @@ function endDrag(e){
 }
 
 // ────────────────────────────────────────
-//  EXECUTION ENGINE
+//  EXECUTION ENGINE — Helpers
+// ────────────────────────────────────────
+
+/** Wait for a duration (ms), polling every 50ms to support early abort */
+function waitWithAbort(ms){
+  const until=Date.now()+ms;
+  return new Promise(resolve=>{
+    function poll(){
+      if(Date.now()>=until || executionAborted) return resolve();
+      setTimeout(poll, 50);
+    }
+    poll();
+  });
+}
+
+/**
+ * Execute a chain of blocks starting from `startBlock`, properly handling nested
+ * control-flow blocks (repeat, if_then) so their children aren't double-executed.
+ * Returns when the chain ends or execution is aborted.
+ */
+async function executeBlockChain(startBlock, prefix){
+  const blocks=getStackBlocks(startBlock);
+  let ci=0;
+  while(ci < blocks.length && !executionAborted){
+    const cb=blocks[ci];
+    appendOutput('info', (prefix||'')+buildBlockDesc(cb));
+    await executeBlockAction(cb);
+    // Skip children of control-flow blocks (they handle their own body)
+    if(cb.def.id==='repeat' || cb.def.id==='if_then'){
+      const innerChild=getChild(cb);
+      if(innerChild){
+        let lastInner=innerChild;
+        while(getChild(lastInner)) lastInner=getChild(lastInner);
+        while(ci < blocks.length && blocks[ci].id!==lastInner.id) ci++;
+      }
+    }
+    ci++;
+  }
+}
+
+// ────────────────────────────────────────
+//  EXECUTION ENGINE — Main
 // ────────────────────────────────────────
 async function executeAll(){
   if(executionRunning) return;
@@ -1137,15 +1191,7 @@ async function executeAll(){
       let i=0;
       while(i<blocks.length && !executionAborted){
         const b=blocks[i];
-        const label=b.def.label;
-        let desc=label;
-        let argIdx=0;
-        (b.def.args||[]).forEach(a=>{
-          const val=b.fields[a.key]!==undefined?b.fields[a.key]:a.def;
-          desc=desc.replace('%'+(argIdx+1),val);
-          argIdx++;
-        });
-        appendOutput('info','▶ '+desc);
+        appendOutput('info','▶ '+buildBlockDesc(b));
 
         await executeBlockAction(b);
 
@@ -1196,6 +1242,7 @@ async function executeBlockAction(inst){
     // ── Motion ──
     case 'move_steps': {
       const steps=parseFloat(f['%1'])||0;
+      if(executionAborted) break;
       // Scratch: 0°=up, 90°=right
       const rad=(90-sprite.direction)*Math.PI/180;
       sprite.x+=Math.cos(rad)*steps;
@@ -1204,33 +1251,37 @@ async function executeBlockAction(inst){
       sprite.x=Math.max(10,Math.min(470,sprite.x));
       sprite.y=Math.max(10,Math.min(310,sprite.y));
       drawSprite();
-      await new Promise(r=>setTimeout(r,100));
+      await waitWithAbort(100);
       break;
     }
     case 'turn_cw': {
+      if(executionAborted) break;
       sprite.direction=(sprite.direction+(parseFloat(f['%1'])||0))%360;
       drawSprite();
-      await new Promise(r=>setTimeout(r,50));
+      await waitWithAbort(50);
       break;
     }
     case 'turn_ccw': {
+      if(executionAborted) break;
       sprite.direction=(sprite.direction-(parseFloat(f['%1'])||0))%360;
       if(sprite.direction<0) sprite.direction+=360;
       drawSprite();
-      await new Promise(r=>setTimeout(r,50));
+      await waitWithAbort(50);
       break;
     }
     case 'goto_xy': {
+      if(executionAborted) break;
       sprite.x=Math.max(10,Math.min(470,parseFloat(f['%1'])||0));
       sprite.y=Math.max(10,Math.min(310,parseFloat(f['%2'])||0));
       drawSprite();
-      await new Promise(r=>setTimeout(r,50));
+      await waitWithAbort(50);
       break;
     }
     case 'jump': {
       const origY=sprite.y;
       sprite.y-=40; drawSprite();
-      await new Promise(r=>setTimeout(r,150));
+      await waitWithAbort(150);
+      if(executionAborted){ sprite.y=origY; drawSprite(); break; }
       sprite.y=origY; drawSprite();
       await new Promise(r=>setTimeout(r,80));
       break;
@@ -1241,7 +1292,8 @@ async function executeBlockAction(inst){
       const text=f['%1']||'Hello!';
       const secs=parseFloat(f['%2'])||2;
       showSpeech(text,false,secs*1000);
-      await new Promise(r=>setTimeout(r,secs*1000));
+      await waitWithAbort(secs*1000);
+      if(executionAborted){ hideSpeech(); break; }
       hideSpeech();
       break;
     }
@@ -1249,7 +1301,8 @@ async function executeBlockAction(inst){
       const text=f['%1']||'Hmm...';
       const secs=parseFloat(f['%2'])||2;
       showSpeech(text,true,secs*1000);
-      await new Promise(r=>setTimeout(r,secs*1000));
+      await waitWithAbort(secs*1000);
+      if(executionAborted){ hideSpeech(); break; }
       hideSpeech();
       break;
     }
@@ -1275,29 +1328,17 @@ async function executeBlockAction(inst){
     }
     case 'wait': {
       const secs=parseFloat(f['%1'])||1;
-      const until=Date.now()+secs*1000;
-      while(Date.now()<until && !executionAborted){
-        await new Promise(r=>setTimeout(r,50));
-      }
+      await waitWithAbort(secs*1000);
       break;
     }
     case 'repeat': {
-      const n=parseInt(f['%1'])||1;
+      const n=Math.max(0, parseInt(f['%1'])||0);
       const child=getChild(inst);
-      if(!child) break;
-      const childBlocks=getStackBlocks(child);
+      if(!child || n===0) break;
       for(let rpt=0; rpt<n && !executionAborted; rpt++){
         appendOutput('info','  ↺ iteration '+(rpt+1)+'/'+n);
-        for(const cb of childBlocks){
-          if(executionAborted) break;
-          appendOutput('info','  ├▶ '+cb.def.label.replace(/%\d+/g,m=>{
-            const ai=parseInt(m.slice(1))-1;
-            const a=(cb.def.args||[])[ai];
-            if(!a) return m;
-            return String(cb.fields[a.key]!==undefined?cb.fields[a.key]:a.def);
-          }));
-          await executeBlockAction(cb);
-        }
+        // Use executeBlockChain so nested control-flow blocks don't double-execute
+        await executeBlockChain(child, '  │ ');
       }
       break;
     }
@@ -1311,23 +1352,15 @@ async function executeBlockAction(inst){
           conditionMet=(sprite.x<=15||sprite.x>=465||sprite.y<=15||sprite.y>=305);
           break;
         case 'color':
-          conditionMet=false; break;
+          conditionMet=(sprite.x>=240-5&&sprite.x<=240+5&&
+            sprite.y>=160-5&&sprite.y<=160+5);
+          break;
         default: conditionMet=(cond==='true');
       }
       if(conditionMet){
         const child=getChild(inst);
         if(child){
-          const childBlocks=getStackBlocks(child);
-          for(const cb of childBlocks){
-            if(executionAborted) break;
-            appendOutput('info','  └▶ '+cb.def.label.replace(/%\d+/g,m=>{
-              const ai=parseInt(m.slice(1))-1;
-              const a=(cb.def.args||[])[ai];
-              if(!a) return m;
-              return String(cb.fields[a.key]!==undefined?cb.fields[a.key]:a.def);
-            }));
-            await executeBlockAction(cb);
-          }
+          await executeBlockChain(child, '  └ ');
         }
       } else {
         appendOutput('info','  └ condition false, skipped');
@@ -1340,10 +1373,10 @@ async function executeBlockAction(inst){
       const sound=f['%1']||'meow';
       appendOutput('info','  ♪ playing "'+escapeHtml(sound)+'"');
       // Visual flash feedback
-      if(stageCanvas){
+      if(stageCanvas && !executionAborted){
         stageCanvas.style.transition='box-shadow .1s';
         stageCanvas.style.boxShadow='0 0 30px rgba(207,99,207,.5)';
-        await new Promise(r=>setTimeout(r,300));
+        await waitWithAbort(300);
         stageCanvas.style.boxShadow='';
       }
       break;
@@ -1356,12 +1389,12 @@ async function executeBlockAction(inst){
     case 'play_drum': {
       const drum=f['%1']||'snare';
       const beats=parseFloat(f['%2'])||0.25;
-      appendOutput('info','  � playing '+escapeHtml(drum)+' for '+beats+' beats');
+      appendOutput('info','  ♪ playing '+escapeHtml(drum)+' for '+beats+' beats');
       // Visual flash
-      if(stageCanvas){
+      if(stageCanvas && !executionAborted){
         stageCanvas.style.transition='box-shadow .1s';
         stageCanvas.style.boxShadow='0 0 20px rgba(255,255,255,.3)';
-        await new Promise(r=>setTimeout(r,beats*500));
+        await waitWithAbort(beats*500);
         stageCanvas.style.boxShadow='';
       }
       break;
