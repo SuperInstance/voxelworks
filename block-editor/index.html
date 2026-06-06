@@ -57,6 +57,8 @@ header button{
 }
 #btn-run{background:var(--accent);color:#fff;border-color:var(--accent)}
 #btn-run:hover{filter:brightness(1.15)}
+#btn-ship{background:#44cc44;color:#fff;border-color:#44cc44;display:inline-flex;align-items:center;gap:4px}
+#btn-ship:hover{filter:brightness(1.15)}
 #btn-clear{border-color:#555;color:var(--text2)}
 #btn-clear:hover{background:var(--bg3);color:var(--text)}
 .header-hint{font-size:11px;color:var(--text2);margin-left:4px}
@@ -274,6 +276,7 @@ header button{
     <span class="spacer"></span>
     <button id="btn-run">▶ Run</button>
     <button id="btn-stop" style="display:none;background:#ff6b6b;border-color:#ff6b6b">■ Stop</button>
+    <button id="btn-ship" style="background:#44cc44;border-color:#44cc44">🚢 Ship to Game</button>
     <button id="btn-clear">✕ Clear</button>
   </header>
   <div class="main-area">
@@ -301,6 +304,7 @@ header button{
   </div>
 </div>
 
+<script src="compiler-bridge.js"></script>
 <script>
 (function(){
 'use strict';
@@ -1488,6 +1492,71 @@ document.getElementById('btn-clear').addEventListener('click',()=>{
   hideSpeech();
   drawSprite();
   setRunningUI(false);
+});
+
+// ════════════════════════════════════════════
+//  SHIP TO GAME
+// ════════════════════════════════════════════
+document.getElementById('btn-ship').addEventListener('click',()=>{
+  if(typeof VoxelCompiler === 'undefined'){
+    appendOutput('error','✗ Compiler bridge not loaded. Check compiler-bridge.js');
+    return;
+  }
+  if(executionRunning) stopExecution();
+
+  const roots = instances.filter(i=>i.parentId===null);
+  if(roots.length===0){
+    appendOutput('warn','⚠ Nothing to ship — drag some blocks to the workspace first!');
+    return;
+  }
+
+  try {
+    appendOutput('info','⚙ Compiling '+roots.length+' script stack(s)...');
+
+    // Compile the instances through the VoxelCompiler bridge
+    const manifest = VoxelCompiler.compileToShipJson(instances, {
+      gameId: 'voxelcraft-game',
+      displayName: 'My Block Game',
+      authorId: 'anon',
+    });
+
+    // Format output for display
+    const jsonStr = JSON.stringify(manifest, null, 2);
+
+    // Store in localStorage for the game engine to read
+    try {
+      localStorage.setItem('voxelworks_block_manifest', jsonStr);
+      localStorage.setItem('voxelworks_block_manifest_ts', String(Date.now()));
+      appendOutput('done','✓ Compiled '+manifest.scriptCount+' script(s), '+manifest.compiledTimelines.reduce((a,s)=>a+(s.timeline||[]).length,0)+' actions');
+    } catch(e) {
+      appendOutput('warn','⚠ Could not store in localStorage (size limit?). See output panel for JSON.');
+    }
+
+    // Also show first few actions in output
+    const timelineEntries = manifest.compiledTimelines || [];
+    for(const t of timelineEntries){
+      appendOutput('info','  📜 '+t.id+' ('+t.trigger+') — '+(t.timeline||[]).length+' actions, ~'+t.durationMs+'ms');
+      const actions = t.timeline||[];
+      actions.slice(0,5).forEach(a=>{
+        appendOutput('','    └ '+a.label || a.type);
+      });
+      if(actions.length>5) appendOutput('','    └ … and '+(actions.length-5)+' more actions');
+    }
+
+    outputStatus.textContent='ready to ship ✓';
+    appendOutput('','');
+    appendOutput('info','🚢 Click again, or open game-template/index.html to run your blocks!');
+
+    // Try to auto-open the game in a new tab
+    const gameUrl = '../game-template/index.html';
+    if(window.confirm('Ship to game — open the Phaser engine now?')){
+      window.open(gameUrl, '_blank');
+    }
+
+  } catch(err){
+    appendOutput('error','✗ Compilation error: '+escapeHtml(err.message));
+    console.error('[ShipToGame] Error:', err);
+  }
 });
 
 // Stage click → run "when clicked" stacks

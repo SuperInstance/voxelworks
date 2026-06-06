@@ -92,5 +92,40 @@
 
   <!-- Game modules -->
   <script type="module" src="/game-template/game.js"></script>
+
+  <!-- Block Manifest Loader (for block-editor integration) -->
+  <script>
+    // Check if we should load a block script from localStorage
+    (function(){
+      var manifestKey = 'voxelworks_block_manifest';
+      var params = new URLSearchParams(window.location.search);
+
+      // Support ?manifest= query param to load from localStorage
+      if(params.get('mode') === 'blocks' || params.get('manifest') === 'local'){
+        try {
+          var stored = localStorage.getItem(manifestKey);
+          if(stored){
+            var parsed = JSON.parse(stored);
+            console.log('[BlockManifest] Found stored manifest:', parsed.displayName, '('+parsed.scriptCount+' scripts)');
+            // Store on window for the game module to read
+            window.__VOXELWORKS_BLOCK_MANIFEST = parsed;
+          } else {
+            console.warn('[BlockManifest] No stored block manifest found. Build a script in Block Studio first!');
+          }
+        } catch(e) {
+          console.error('[BlockManifest] Error loading manifest:', e);
+        }
+      }
+
+      // If redirected from block editor, we might already have it in sessionStorage
+      try {
+        var sessionStored = sessionStorage.getItem(manifestKey);
+        if(sessionStored && !window.__VOXELWORKS_BLOCK_MANIFEST){
+          window.__VOXELWORKS_BLOCK_MANIFEST = JSON.parse(sessionStored);
+          console.log('[BlockManifest] Loaded from sessionStorage');
+        }
+      } catch(e) {}
+    })();
+  </script>
 </body>
 </html>
