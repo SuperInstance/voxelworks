@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VoxelWorks — Build Worlds, Not Code</title>
+<style>
+  /* ── Reset & Base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #0a0a1a;
+    color: #e2e8f0;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Header ── */
+  .hero {
+    text-align: center;
+    padding: 3rem 1.5rem 1.5rem;
+    background: linear-gradient(180deg, #0f0f2e 0%, #0a0a1a 100%);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #60a5fa, #a78bfa, #f472b6, transparent);
+  }
+  .hero h1 {
+    font-size: 3rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #60a5fa, #a78bfa, #f472b6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.4rem;
+    letter-spacing: -0.02em;
+  }
+  .hero p {
+    font-size: 1.1rem;
+    color: #94a3b8;
+    max-width: 500px;
+    margin: 0 auto;
+  }
+  .hero .tagline {
+    font-size: 0.85rem;
+    color: #64748b;
+    margin-top: 0.4rem;
+  }
+  .hero .tagline span {
+    display: inline-block;
+    animation: bounce-tag 3s ease-in-out infinite;
+  }
+  @keyframes bounce-tag {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+  }
+
+  /* ── Room Grid ── */
+  .room-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.25rem;
+    max-width: 1000px;
+    margin: 2rem auto;
+    padding: 0 1.5rem;
+  }
+
+  .room-card {
+    background: linear-gradient(180deg, #111128 0%, #0d0d20 100%);
+    border: 1px solid #1e1e3f;
+    border-radius: 16px;
+    padding: 1.5rem;
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.25s cubic-bezier(.34,1.56,.64,1),
+                box-shadow 0.25s ease,
+                border-color 0.2s;
+    animation: card-enter 0.5s cubic-bezier(.34,1.56,.64,1) both;
+  }
+  @keyframes card-enter {
+    from { opacity: 0; transform: translateY(30px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .room-card:nth-child(1) { animation-delay: 0.05s; }
+  .room-card:nth-child(2) { animation-delay: 0.10s; }
+  .room-card:nth-child(3) { animation-delay: 0.15s; }
+  .room-card:nth-child(4) { animation-delay: 0.20s; }
+  .room-card:nth-child(5) { animation-delay: 0.25s; }
+
+  .room-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 12px 40px rgba(96,165,250,0.12);
+    border-color: rgba(96,165,250,0.3);
+  }
+
+  .room-card .card-glow {
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle at 50% 0%, var(--glow-color, rgba(96,165,250,0.06)), transparent 70%);
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .room-card:hover .card-glow {
+    opacity: 1.2;
+  }
+
+  .room-card .card-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.75rem;
+    display: block;
+  }
+
+  .room-card h3 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 0.35rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .room-card .badge {
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+    background: rgba(74,222,128,0.12);
+    color: #4ade80;
+    border: 1px solid rgba(74,222,128,0.2);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .room-card .badge.coming {
+    background: rgba(148,163,184,0.1);
+    color: #64748b;
+    border-color: rgba(148,163,184,0.15);
+  }
+
+  .room-card p {
+    font-size: 0.85rem;
+    color: #94a3b8;
+    line-height: 1.5;
+    margin-bottom: 0.75rem;
+  }
+
+  .room-card .features {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .room-card .features span {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.06);
+    color: #64748b;
+  }
+
+  /* Per-card border colors */
+  .room-card.hub      { --glow-color: rgba(59,130,246,0.08); }
+  .room-card.studio   { --glow-color: rgba(34,197,94,0.08); }
+  .room-card.lab      { --glow-color: rgba(168,85,247,0.08); }
+  .room-card.deck     { --glow-color: rgba(234,179,8,0.08); }
+  .room-card.engine   { --glow-color: rgba(236,72,153,0.08); }
+
+  .room-card.hub:hover    { border-color: rgba(59,130,246,0.3); }
+  .room-card.studio:hover { border-color: rgba(34,197,94,0.3); }
+  .room-card.lab:hover    { border-color: rgba(168,85,247,0.3); }
+  .room-card.deck:hover   { border-color: rgba(234,179,8,0.3); }
+  .room-card.engine:hover { border-color: rgba(236,72,153,0.3); }
+
+  /* ── Flow Diagram ── */
+  .flow-section {
+    max-width: 1000px;
+    margin: 2.5rem auto 0;
+    padding: 0 1.5rem;
+  }
+  .flow-section h2 {
+    text-align: center;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #cbd5e1;
+    margin-bottom: 1.25rem;
+  }
+  .flow-steps {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1.25rem;
+    background: #111128;
+    border: 1px solid #1e1e3f;
+    border-radius: 12px;
+  }
+  .flow-step {
+    background: #1a1a3f;
+    border: 1px solid #2a2a5f;
+    border-radius: 8px;
+    padding: 0.65rem 1rem;
+    text-align: center;
+    min-width: 100px;
+    transition: transform 0.2s;
+  }
+  .flow-step:hover { transform: scale(1.05); }
+  .flow-step .emoji { font-size: 1.25rem; display: block; }
+  .flow-step .label { font-size: 0.7rem; color: #94a3b8; margin-top: 0.15rem; }
+  .flow-arrow { font-size: 1.25rem; color: #60a5fa; }
+
+  /* ── Quick Start ── */
+  .quickstart {
+    max-width: 1000px;
+    margin: 2.5rem auto 3rem;
+    padding: 0 1.5rem;
+  }
+  .quickstart h2 {
+    text-align: center;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #cbd5e1;
+    margin-bottom: 1rem;
+  }
+  .quickstart-box {
+    background: #111128;
+    border: 1px solid #1e1e3f;
+    border-radius: 12px;
+    padding: 1.5rem 2rem;
+    text-align: center;
+  }
+  .quickstart-box p {
+    color: #94a3b8;
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+  .quickstart-box p strong {
+    color: #e2e8f0;
+  }
+  .quickstart-box .cta-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: center;
+    margin-top: 1rem;
+  }
+  .quickstart-box .cta-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.65rem 1.25rem;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .quickstart-box .cta-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+  }
+  .cta-btn.primary {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: #fff;
+  }
+  .cta-btn.secondary {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: #fff;
+  }
+  .cta-btn.tertiary {
+    background: rgba(255,255,255,0.06);
+    color: #94a3b8;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center;
+    padding: 2rem 1.5rem 3rem;
+    color: #475569;
+    font-size: 0.8rem;
+  }
+  .footer a {
+    color: #64748b;
+    text-decoration: none;
+  }
+  .footer a:hover { color: #94a3b8; }
+
+  /* ── Responsive ── */
+  @media (max-width: 640px) {
+    .hero h1 { font-size: 2rem; }
+    .room-grid { grid-template-columns: 1fr; }
+    .room-card { animation-delay: 0s !important; }
+    .flow-steps { flex-direction: column; }
+    .flow-arrow { transform: rotate(90deg); }
+    .quickstart-box { padding: 1.25rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== HERO ===== -->
+<header class="hero">
+  <h1>🌐 VoxelWorks</h1>
+  <p>Build worlds, not code.&ensp;A game about making games.</p>
+  <div class="tagline"><span>💬</span> Talk to your world. It builds itself.</div>
+</header>
+
+<!-- ===== ROOM GRID ===== -->
+<main class="room-grid">
+
+  <!-- Hub Room -->
+  <a class="room-card hub" href="hub-room/index.html">
+    <div class="card-glow"></div>
+    <span class="card-icon">🏠</span>
+    <h3>
+      Hub Room
+      <span class="badge">Live</span>
+    </h3>
+    <p>The voxel living room — your home base. Chat with Buddy by the fireplace, check past projects on the bookshelf, or head out the door to any room.</p>
+    <div class="features">
+      <span>💬 Buddy Chatbot</span>
+      <span>🔥 Fireplace</span>
+      <span>📚 Bookshelf</span>
+      <span>🚪 Door Nav</span>
+      <span>🪟 Window Themes</span>
+    </div>
+  </a>
+
+  <!-- Build Studio -->
+  <a class="room-card studio" href="block-editor/index.html">
+    <div class="card-glow"></div>
+    <span class="card-icon">🎨</span>
+    <h3>
+      Build Studio
+      <span class="badge">Live</span>
+    </h3>
+    <p>Scratch-like block programming. Drag motion, looks, control, and sound blocks onto the canvas, snap them together, and see your script run.</p>
+    <div class="features">
+      <span>🧩 18 Blocks</span>
+      <span>🔗 Snap Stacking</span>
+      <span>▶️ Run Output</span>
+      <span>🎯 5 Categories</span>
+    </div>
+  </a>
+
+  <!-- Asset Lab -->
+  <a class="room-card lab" href="asset-lab/index.html">
+    <div class="card-glow"></div>
+    <span class="card-icon">✨</span>
+    <h3>
+      Asset Lab
+      <span class="badge">Live</span>
+    </h3>
+    <p>Prompt-powered asset generator. Describe a sprite, background, sound, music track, or story — see it come to life as a visual preview.</p>
+    <div class="features">
+      <span>🎮 Sprites</span>
+      <span>🏞️ Backgrounds</span>
+      <span>🔊 Sounds</span>
+      <span>🎵 Music</span>
+      <span>📜 Stories</span>
+    </div>
+  </a>
+
+  <!-- Ship Deck -->
+  <a class="room-card deck" href="ship-deck/index.html">
+    <div class="card-glow"></div>
+    <span class="card-icon">🚀</span>
+    <h3>
+      Ship Deck
+      <span class="badge">Live</span>
+    </h3>
+    <p>Your mission control. See your creation history on the timeline, and share your world with a single click — QR code and URL included.</p>
+    <div class="features">
+      <span>📜 Git Timeline</span>
+      <span>🌍 Share World</span>
+      <span>📋 Copy URL</span>
+      <span>📱 QR Code</span>
+    </div>
+  </a>
+
+  <!-- Game Engine -->
+  <a class="room-card engine" href="game-template/index.html">
+    <div class="card-glow"></div>
+    <span class="card-icon">🎮</span>
+    <h3>
+      Game Engine
+      <span class="badge">Live</span>
+    </h3>
+    <p>A playable Phaser.js platformer with 3 levels, a cute green cat hero, coins to collect, spikes to avoid, and parallax scrolling worlds.</p>
+    <div class="features">
+      <span>🐱 Cat Hero</span>
+      <span>🪙 Coins</span>
+      <span>⚠️ Spikes</span>
+      <span>🌄 3 Levels</span>
+      <span>📱 Touch Controls</span>
+    </div>
+  </a>
+
+  <!-- Coming Soon: Library -->
+  <div class="room-card" style="cursor:default;opacity:0.6;border-color:rgba(100,116,139,0.15);" onclick="return false;">
+    <div class="card-glow" style="--glow-color:rgba(148,163,184,0.05);"></div>
+    <span class="card-icon">📖</span>
+    <h3>
+      Library
+      <span class="badge coming">Coming Soon</span>
+    </h3>
+    <p>A quiet corner for reference docs, tutorials, and past projects. Future home of the VoxelWorks knowledge base.</p>
+    <div class="features">
+      <span>📚 Docs</span>
+      <span>📝 Tutorials</span>
+      <span>🗂️ Archive</span>
+    </div>
+  </div>
+
+</main>
+
+<!-- ===== FLOW DIAGRAM ===== -->
+<section class="flow-section">
+  <h2>⚡ How It Works</h2>
+  <div class="flow-steps">
+    <div class="flow-step">
+      <span class="emoji">💡</span>
+      <span class="label">Ideate</span>
+    </div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">
+      <span class="emoji">🎨</span>
+      <span class="label">Build Studio</span>
+    </div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">
+      <span class="emoji">✨</span>
+      <span class="label">Asset Lab</span>
+    </div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">
+      <span class="emoji">🎮</span>
+      <span class="label">Game Engine</span>
+    </div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">
+      <span class="emoji">🚀</span>
+      <span class="label">Ship Deck</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===== QUICK START ===== -->
+<section class="quickstart">
+  <h2>🚀 Quick Start</h2>
+  <div class="quickstart-box">
+    <p>
+      <strong>New here?</strong> Start in the <strong>Hub Room</strong> to meet Buddy.<br>
+      <strong>Want to build?</strong> Open the <strong>Build Studio</strong> and drag some blocks.<br>
+      <strong>Need art?</strong> Describe it in the <strong>Asset Lab</strong>.<br>
+      <strong>Ready to play?</strong> Jump into the <strong>Game Engine</strong>.<br>
+      <strong>Done creating?</strong> Share your world from the <strong>Ship Deck</strong>.
+    </p>
+    <div class="cta-buttons">
+      <a class="cta-btn primary" href="hub-room/index.html">🏠 Enter Hub</a>
+      <a class="cta-btn secondary" href="game-template/index.html">🎮 Play Now</a>
+      <a class="cta-btn tertiary" href="block-editor/index.html">🧱 Start Building</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer class="footer">
+  <p>VoxelWorks &middot; Build Worlds, Not Code</p>
+  <p style="margin-top:0.25rem">
+    <a href="hub-room/index.html">Hub</a>
+    &ensp;·&ensp;
+    <a href="block-editor/index.html">Studio</a>
+    &ensp;·&ensp;
+    <a href="asset-lab/index.html">Lab</a>
+    &ensp;·&ensp;
+    <a href="ship-deck/index.html">Deck</a>
+    &ensp;·&ensp;
+    <a href="game-template/index.html">Game</a>
+  </p>
+</footer>
+
+</body>
+</html>
