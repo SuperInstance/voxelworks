@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html><head><title>VoxelWorks — Test Dashboard</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  body { margin:0; background:#0a0a1a; color:#e8e8f0; font-family:system-ui,sans-serif; }
+  .header { padding:16px; text-align:center; border-bottom:1px solid #1e1e3f; }
+  .header h1 { margin:0; font-size:1.25rem; color:#60a5fa; }
+  .header p { margin:4px 0 0; font-size:0.8rem; color:#64748b; }
+  .rooms { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; padding:16px; }
+  .room { background:#111128; border:1px solid #1e1e3f; border-radius:12px; overflow:hidden; }
+  .room h2 { margin:0; padding:12px 16px; font-size:0.9rem; border-bottom:1px solid #1e1e3f; }
+  .room iframe { width:100%; height:400px; border:none; background:#fff; }
+  .links { text-align:center; padding:12px; }
+  .links a { color:#60a5fa; text-decoration:none; margin:0 8px; font-size:0.85rem; }
+  .links a:hover { text-decoration:underline; }
+</style>
+</head><body>
+<div class="header">
+  <h1>🦀 VoxelWorks — Dashboard</h1>
+  <p>All rooms loaded below. Click around like a middle schooler would.</p>
+</div>
+<div class="links">
+  <a href="hub-room/index.html">🏡 Hub</a>
+  <a href="block-editor/index.html">🎨 Build Studio</a>
+  <a href="asset-lab/index.html">✨ Asset Lab</a>
+  <a href="ship-deck/index.html">🚢 Ship Deck</a>
+  <a href="game-template/index.html">🎮 Game Engine</a>
+</div>
+<div class="rooms">
+  <div class="room"><h2>🏡 Hub Room</h2><iframe src="hub-room/index.html"></iframe></div>
+  <div class="room"><h2>🎨 Build Studio</h2><iframe src="block-editor/index.html"></iframe></div>
+  <div class="room"><h2>✨ Asset Lab</h2><iframe src="asset-lab/index.html"></iframe></div>
+  <div class="room"><h2>🚢 Ship Deck</h2><iframe src="ship-deck/index.html"></iframe></div>
+  <div class="room"><h2>🎮 Game Engine</h2><iframe src="game-template/index.html"></iframe></div>
+</div>
+</body></html>
