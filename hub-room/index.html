@@ -1102,11 +1102,23 @@ body{
   function travel(room){
     const travelOv=document.getElementById('travelOverlay');
     travelOv.classList.add('active');
+    const roomUrls={
+      'Build Studio': '../block-editor/index.html',
+      'Asset Lab': '../asset-lab/index.html',
+      'Ship Deck': '../ship-deck/index.html',
+      'Library': '../hub-room/index.html'
+    };
     setTimeout(function(){
       travelOv.classList.remove('active');
-      const arrOv=document.getElementById('arrivalOverlay');
-      document.getElementById('arrivalTitle').textContent='🎨 '+room;
-      arrOv.classList.add('active');
+      const target=roomUrls[room];
+      if(target){
+        window.location.href=target;
+      }else{
+        // Fallback: show arrival overlay then navigate
+        const arrOv=document.getElementById('arrivalOverlay');
+        document.getElementById('arrivalTitle').textContent='🎨 '+room;
+        arrOv.classList.add('active');
+      }
     },1200);
   }
 
@@ -1123,6 +1135,25 @@ body{
     if(glow){
       glow.style.animationPlayState=fpToggle?'paused':'running';
     }
+  });
+
+  // ===== Continue Building button — navigate to room ====
+  document.querySelector('[data-action="continue"]').addEventListener('click',function(){
+    const title=document.getElementById('arrivalTitle').textContent;
+    const roomUrls={
+      '🎨 Build Studio': '../block-editor/index.html',
+      '🧩 Asset Lab': '../asset-lab/index.html',
+      '🚢 Ship Deck': '../ship-deck/index.html',
+      '📖 Library': '../hub-room/index.html'
+    };
+    const clean=title.replace(/^[^a-zA-Z]+/,'').trim();
+    for(const[key,url]of Object.entries(roomUrls)){
+      if(key.includes(clean)){
+        window.location.href=url;
+        return;
+      }
+    }
+    document.getElementById('arrivalOverlay').classList.remove('active');
   });
 
   // ===== Close overlays (data-close) =====
