@@ -11,6 +11,14 @@
   //  Avoids needing to parse the ES module in a non-module context.
   // ─────────────────────────────────────────────
 
+  const CATEGORY_COLORS = {
+    motion: '#4C97FF',
+    looks: '#9966FF',
+    control: '#FFAB19',
+    sound: '#CF63CF',
+    sensing: '#5CB1D6',
+  };
+
   const BLOCK_DEFS = {
     // ─── Motion ───
     move_steps: { id: "move_steps", category: "motion", label: "move %1 steps", args: [{ key:"%1", type:"number", def:10 }] },
