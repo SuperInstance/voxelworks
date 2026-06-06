@@ -6,9 +6,9 @@
  * No build step needed — just open index.html in a browser!
  */
 
-import { BootScene } from './scenes/BootScene.js';
-import { MenuScene } from './scenes/MenuScene.js';
-import { GameScene } from './scenes/GameScene.js';
+import { BootScene } from '/game-template/scenes/BootScene.js';
+import { MenuScene } from '/game-template/scenes/MenuScene.js';
+import { GameScene } from '/game-template/scenes/GameScene.js';
 
 /** Phaser scale configuration */
 const scaleConfig = {
