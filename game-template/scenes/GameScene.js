@@ -489,8 +489,8 @@ export class GameScene extends Phaser.Scene {
     this.uiContainer.add(this.livesText);
 
     // Coin count
-    const totalCoins = this.coins.getLength();
-    this.coinCountText = this.add.text(12, 26, `Coins: 0 / ${totalCoins}`, {
+    this.totalCoins = this.coins.getLength();
+    this.coinCountText = this.add.text(12, 26, `Coins: 0 / ${this.totalCoins}`, {
       fontSize: '10px',
       color: '#888888',
       fontFamily: 'Courier New',
