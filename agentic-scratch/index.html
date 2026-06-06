@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agentic Scratch — MIDI for Games</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0a1a;--surface:#111128;--border:#1e1e3f;--text:#e8e8f0;--muted:#64748b;
+  --classical:#e8d44d;--jazz:#a78bfa;--rock:#f472b6;--hiphop:#60a5fa;--dance:#34d399;--acoustic:#fb923c;
+}
+body{font-family:-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden}
+.header{display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--surface);border-bottom:1px solid var(--border)}
+.header h1{font-size:1.1rem;background:linear-gradient(135deg,#60a5fa,#a78bfa,#f472b6);-webkit-background-clip:text}
+.header .sub{font-size:.75rem;color:var(--muted);margin-left:auto}
+
+/* Genre selector — like picking a music genre */
+.genre-strip{display:flex;gap:8px;padding:12px 20px;overflow-x:auto;background:var(--surface);border-bottom:1px solid var(--border)}
+.genre-btn{padding:6px 16px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:.8rem;white-space:nowrap;transition:all .2s}
+.genre-btn:hover{border-color:var(--text);color:var(--text)}
+.genre-btn.active{border-color:var(--classical);color:var(--classical);background:rgba(232,212,77,.1)}
+.genre-btn[data-genre="jazz"].active{border-color:var(--jazz);color:var(--jazz);background:rgba(167,139,251,.1)}
+.genre-btn[data-genre="rock"].active{border-color:var(--rock);color:var(--rock);background:rgba(244,114,182,.1)}
+.genre-btn[data-genre="hiphop"].active{border-color:var(--hiphop);color:var(--hiphop);background:rgba(96,165,250,.1)}
+.genre-btn[data-genre="dance"].active{border-color:var(--dance);color:var(--dance);background:rgba(52,211,153,.1)}
+.genre-btn[data-genre="acoustic"].active{border-color:var(--acoustic);color:var(--acoustic);background:rgba(251,146,60,.1)}
+
+/* Genre description — like saying what makes a music genre great */
+.genre-desc{padding:8px 20px;font-size:.75rem;color:var(--muted);font-style:italic;border-bottom:1px solid var(--border);min-height:2rem}
+
+/* Main layout — timeline + tracks */
+.main{display:flex;height:calc(100vh - 160px)}
+.track-list{width:160px;background:var(--surface);border-right:1px solid var(--border);padding:8px;overflow-y:auto;flex-shrink:0}
+.track-item{padding:8px 12px;border-radius:6px;font-size:.75rem;cursor:pointer;margin-bottom:4px;transition:background .2s}
+.track-item:hover{background:rgba(255,255,255,.05)}
+.track-item.active{background:rgba(96,165,250,.15);color:#60a5fa}
+.track-item .icon{display:block;font-size:1.1rem}
+.track-item .name{font-size:.7rem;color:var(--muted);margin-top:2px}
+
+/* Timeline canvas — horizontal beat grid */
+.timeline-area{flex:1;overflow:auto;position:relative;background:var(--bg)}
+.timeline-header{display:flex;height:32px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:2;padding-left:8px}
+.beat-mark{width:80px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.65rem;color:var(--muted);border-right:1px solid var(--border)}
+.beat-mark .num{font-weight:600;margin-right:4px}
+.beat-mark .em{font-size:.55rem}
+
+/* Track rows on timeline */
+.track-row{display:flex;height:80px;border-bottom:1px solid rgba(30,30,63,.5);position:relative}
+.track-row:hover{background:rgba(255,255,255,.02)}
+.track-label{width:160px;flex-shrink:0;display:flex;align-items:center;padding:0 12px;font-size:.7rem;color:var(--muted);border-right:1px solid var(--border);background:var(--surface);position:sticky;left:0;z-index:1}
+.track-cells{display:flex;flex:1}
+.cell{width:80px;flex-shrink:0;height:100%;border-right:1px solid rgba(30,30,63,.3);position:relative;cursor:pointer;transition:background .15s}
+.cell:hover{background:rgba(96,165,250,.08)}
+.cell.filled::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:32px;height:32px;border-radius:6px;animation:blockPop .2s ease-out}
+@keyframes blockPop{0%{transform:translate(-50%,-50%) scale(0)}70%{transform:translate(-50%,-50%) scale(1.15)}100%{transform:translate(-50%,-50%) scale(1)}}
+.cell.filled.move::after{background:#3b82f6;border:1px solid #60a5fa}
+.cell.filled.jump::after{background:#22c55e;border:1px solid #4ade80}
+.cell.filled.coin::after{background:#f59e0b;border:1px solid #fbbf24}
+.cell.filled.spike::after{background:#ef4444;border:1px solid #f87171}
+.cell.filled.sound::after{background:#a855f7;border:1px solid #c084fc}
+.cell.filled.wait::after{background:#64748b;border:1px solid #94a3b8}
+
+/* Block palette — the loop you can grab */
+.block-palette{width:200px;background:var(--surface);border-left:1px solid var(--border);padding:12px;overflow-y:auto;flex-shrink:0}
+.block-palette h3{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.palette-block{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;font-size:.75rem;cursor:grab;margin-bottom:4px;transition:all .2s}
+.palette-block:hover{transform:translateX(4px)}
+.palette-block .color-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.palette-block .label{color:var(--text)}
+.palette-block .shortcut{font-size:.6rem;color:var(--muted);margin-left:auto}
+
+/* Bottom — play controls like a DAW */
+.transport{display:flex;align-items:center;gap:12px;padding:8px 20px;background:var(--surface);border-top:1px solid var(--border)}
+.play-btn{padding:6px 20px;border-radius:20px;border:none;background:#22c55e;color:#052e16;font-weight:600;font-size:.85rem;cursor:pointer;transition:all .2s}
+.play-btn:hover{background:#4ade80}
+.play-btn.playing{background:#ef4444}
+.play-btn.playing:hover{background:#f87171}
+.bpm{display:flex;align-items:center;gap:6px;font-size:.75rem;color:var(--muted)}
+.bpm input{width:50px;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.75rem;text-align:center}
+.snap{font-size:.7rem;color:var(--muted)}
+
+/* Genre info modal */
+.genre-info{position:fixed;bottom:60px;right:20px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;max-width:300px;display:none;z-index:10}
+.genre-info.show{display:block}
+.genre-info h4{font-size:.85rem;margin-bottom:6px}
+.genre-info p{font-size:.7rem;color:var(--muted);line-height:1.5}
+.genre-info .close-btn{position:absolute;top:8px;right:8px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:.8rem}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🎵 Agentic Scratch — MIDI for Games</h1>
+  <span class="sub">Compose games like you compose music. Tracks. Beats. Genres. Play.</span>
+</div>
+
+<div class="genre-strip" id="genreStrip">
+  <button class="genre-btn active" data-genre="classical">🎻 Classical</button>
+  <button class="genre-btn" data-genre="jazz">🎷 Jazz</button>
+  <button class="genre-btn" data-genre="hiphop">🎤 Hip Hop</button>
+  <button class="genre-btn" data-genre="rock">🎸 Rock</button>
+  <button class="genre-btn" data-genre="dance">💃 Dance</button>
+  <button class="genre-btn" data-genre="acoustic">🎵 Acoustic</button>
+</div>
+
+<div class="genre-desc" id="genreDesc">Classical games = puzzle perfection. Every block precise. Victory is elegance. ⚜️</div>
+
+<div class="main">
+  <div class="track-list" id="trackList">
+    <div class="track-item active" data-track="0"><span class="icon">🏃</span><span class="name">Player</span></div>
+    <div class="track-item" data-track="1"><span class="icon">👾</span><span class="name">Enemies</span></div>
+    <div class="track-item" data-track="2"><span class="icon">💎</span><span class="name">Collectibles</span></div>
+    <div class="track-item" data-track="3"><span class="icon">🏗️</span><span class="name">Platforms</span></div>
+    <div class="track-item" data-track="4"><span class="icon">🎵</span><span class="name">Music</span></div>
+    <div class="track-item" data-track="5"><span class="icon">📜</span><span class="name">Events</span></div>
+  </div>
+
+  <div class="timeline-area" id="timelineArea">
+    <div class="timeline-header" id="timelineHeader"></div>
+    <div id="trackRows"></div>
+  </div>
+
+  <div class="block-palette" id="blockPalette">
+    <h3>🎼 Blocks</h3>
+    <div class="palette-block" data-block="move"><span class="color-dot" style="background:#3b82f6"></span><span class="label">Move →</span><span class="shortcut">M</span></div>
+    <div class="palette-block" data-block="jump"><span class="color-dot" style="background:#22c55e"></span><span class="label">Jump ↑</span><span class="shortcut">J</span></div>
+    <div class="palette-block" data-block="coin"><span class="color-dot" style="background:#f59e0b"></span><span class="label">Coin 💰</span><span class="shortcut">C</span></div>
+    <div class="palette-block" data-block="spike"><span class="color-dot" style="background:#ef4444"></span><span class="label">Spike ⚠️</span><span class="shortcut">S</span></div>
+    <div class="palette-block" data-block="sound"><span class="color-dot" style="background:#a855f7"></span><span class="label">Sound 🔊</span><span class="shortcut">A</span></div>
+    <div class="palette-block" data-block="wait"><span class="color-dot" style="background:#64748b"></span><span class="label">Wait ⏸️</span><span class="shortcut">W</span></div>
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+      <h3>🎯 Win Condition</h3>
+      <div class="palette-block" data-block="collect_all"><span class="color-dot" style="background:#fbbf24"></span><span class="label">Collect All</span></div>
+      <div class="palette-block" data-block="reach_end"><span class="color-dot" style="background:#34d399"></span><span class="label">Reach End</span></div>
+      <div class="palette-block" data-block="survive"><span class="color-dot" style="background:#fb923c"></span><span class="label">Survive Timer</span></div>
+      <div class="palette-block" data-block="score_target"><span class="color-dot" style="background:#f472b6"></span><span class="label">Score Target</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="transport">
+  <button class="play-btn" id="playBtn">▶ Play Composition</button>
+  <div class="bpm">♩ BPM <input type="number" id="bpmInput" value="120" min="40" max="240"></div>
+  <div class="snap">Snap: 1 beat</div>
+  <div style="margin-left:auto"><button id="infoBtn" style="background:none;border:1px solid var(--border);border-radius:50%;width:24px;height:24px;color:var(--muted);cursor:pointer;font-size:.7rem">?</button></div>
+</div>
+
+<div class="genre-info" id="genreInfo">
+  <button class="close-btn" id="closeInfo">✕</button>
+  <h4 id="infoTitle">🎻 Classical</h4>
+  <p id="infoBody">Classical games = puzzle perfection. Every move must be precise. Victory is elegance. Think: precise platforming, perfect timmg, minimal moves.</p>
+</div>
+
+<script>
+// ===== Genre System =====
+const GENRES = {
+  classical: {
+    label:'🎻 Classical',color:'#e8d44d',
+    desc:'Classical games = puzzle perfection. Every block precise. Victory is elegance. 🎯',
+    winTypes:['collect_all','reach_end'],
+    vibe:'Elegant. Precise. Every note matters. No wasted motion.',
+    scoring:'Accuracy, minimal moves, perfect timing.',
+    victory:'Achieve perfect sequence completion. Bonus for unused blocks.'
+  },
+  jazz: {
+    label:'🎷 Jazz',color:'#a78bfa',
+    desc:'Jazz games = improvisation and expression. Build your own path. New every time. 🎷',
+    winTypes:['survive','score_target'],
+    vibe:'Expressive. Improvised. No wrong answers, only surprising ones.',
+    scoring:'Creativity, variety, unexpected combinations.',
+    victory:'Hit the score target using your own unique combo sequence.'
+  },
+  hiphop: {
+    label:'🎤 Hip Hop',color:'#60a5fa',
+    desc:'Hip Hop games = flow and rhythm. Stay on beat. Build momentum. Keep going. 🎤',
+    winTypes:['reach_end','score_target'],
+    vibe:'Rhythmic. Momentum-driven. The beat drops and you move.',
+    scoring:'Flow state duration, beat accuracy, combo chains.',
+    victory:'Reach the end without breaking your combo. Bonus for style.'
+  },
+  rock: {
+    label:'🎸 Rock',color:'#f472b6',
+    desc:'Rock games = energy and action. Hooks, riffs, big moments. High impact. 🎸',
+    winTypes:['score_target','reach_end'],
+    vibe:'Energetic. Loud. Big hooks. Guitar solo moments.',
+    scoring:'Enemies defeated, coins collected in succession, big combos.',
+    victory:'Hit peak energy and maintain through the finale (final beat).'
+  },
+  dance: {
+    label:'💃 Dance',color:'#34d399',
+    desc:'Dance games = make people move. Party energy. Infectious fun. 💃',
+    winTypes:['reach_end','survive'],
+    vibe:'Party. Movement. Infectious energy. Bodies in motion.',
+    scoring:'Beats followed, crowd energy, move variety.',
+    victory:'Keep the crowd moving. Fail if energy drops to zero.'
+  },
+  acoustic: {
+    label:'🎵 Acoustic',color:'#fb923c',
+    desc:'Acoustic games = story and heart. Make people stop and feel. 🎵',
+    winTypes:['collect_all','reach_end'],
+    vibe:'Intimate. Emotional. Makes you stop and think.',
+    scoring:'Story beats discovered, emotional moments, atmosphere.',
+    victory:'Complete the journey. The score is how you felt along the way.'
+  }
+};
+
+// ===== State =====
+let currentGenre = 'classical';
+let currentTrack = 0;
+const BPM = 120;
+const BEATS = 16;
+const TRACKS = 6;
+const TRACK_NAMES = ['Player','Enemies','Collectibles','Platforms','Music','Events'];
+// grid[track][beat] = block type or null
+const grid = Array.from({length:TRACKS}, ()=>Array(BEATS).fill(null));
+const BLOCK_ORDER = ['move','jump','coin','spike','sound','wait','collect_all','reach_end','survive','score_target'];
+
+// ===== Render Timeline Header =====
+function renderHeader(){
+  const h = document.getElementById('timelineHeader');
+  h.innerHTML = '';
+  for(let b=0;b<BEATS;b++){
+    const div = document.createElement('div');
+    div.className = 'beat-mark';
+    div.innerHTML = `<span class="num">${b+1}</span><span class="em">♩</span>`;
+    h.appendChild(div);
+  }
+}
+
+// ===== Render Tracks =====
+function renderTracks(){
+  const container = document.getElementById('trackRows');
+  container.innerHTML = '';
+  for(let t=0;t<TRACKS;t++){
+    const row = document.createElement('div');
+    row.className = 'track-row';
+    
+    const label = document.createElement('div');
+    label.className = 'track-label';
+    label.textContent = TRACK_NAMES[t];
+    row.appendChild(label);
+    
+    const cells = document.createElement('div');
+    cells.className = 'track-cells';
+    
+    for(let b=0;b<BEATS;b++){
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.track = t;
+      cell.dataset.beat = b;
+      
+      const block = grid[t][b];
+      if(block){
+        cell.classList.add('filled',block);
+      }
+      
+      cell.addEventListener('click',function(){
+        const tr = parseInt(this.dataset.track);
+        const be = parseInt(this.dataset.beat);
+        const blockType = document.querySelector('.genre-insert') || null;
+        
+        if(grid[tr][be]){
+          // Remove
+          grid[tr][be] = null;
+          renderTracks();
+        } else {
+          // Add — use the current selected track's suggested block or prompt
+          const suggested = BLOCK_ORDER[tr] || 'move';
+          grid[tr][be] = suggested;
+          renderTracks();
+          // Play a tiny sound to confirm placement
+          audioCtx && playBeep(audioCtx, 800, 0.08);
+        }
+      });
+      
+      cells.appendChild(cell);
+    }
+    
+    row.appendChild(cells);
+    container.appendChild(row);
+  }
+}
+
+// ===== Play the composition (like playing a MIDI file) =====
+let audioCtx = null;
+let isPlaying = false;
+let playTimeout = null;
+
+function getAudioContext(){
+  if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playBeep(ctx, freq, duration){
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.frequency.value = freq;
+  osc.type = 'sine';
+  gain.gain.setValueAtTime(0.15, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + duration);
+}
+
+function playComposition(){
+  if(isPlaying){
+    clearTimeout(playTimeout);
+    isPlaying = false;
+    document.getElementById('playBtn').textContent = '▶ Play Composition';
+    document.getElementById('playBtn').className = 'play-btn';
+    // Clear all highlighted cells
+    document.querySelectorAll('.cell.highlight').forEach(c=>c.classList.remove('highlight'));
+    return;
+  }
+  
+  const ctx = getAudioContext();
+  isPlaying = true;
+  const btn = document.getElementById('playBtn');
+  btn.textContent = '⏹ Stop';
+  btn.className = 'play-btn playing';
+  
+  const bpm = parseInt(document.getElementById('bpmInput').value) || 120;
+  const beatMs = 60000 / bpm;
+  
+  // Highlight cells as they play, with sounds
+  let beatIdx = 0;
+  function playBeat(){
+    if(!isPlaying) return;
+    
+    // Clear previous highlight
+    document.querySelectorAll('.cell.highlight').forEach(c=>c.classList.remove('highlight'));
+    
+    if(beatIdx >= BEATS){
+      // Finished — celebrate
+      isPlaying = false;
+      btn.textContent = '▶ Play Composition';
+      btn.className = 'play-btn';
+      playBeep(ctx, 1200, 0.3);
+      return;
+    }
+    
+    // Play all blocks on this beat
+    for(let t=0;t<TRACKS;t++){
+      const cell = document.querySelector(`.cell[data-track="${t}"][data-beat="${beatIdx}"]`);
+      if(cell){
+        cell.classList.add('highlight');
+        const block = grid[t][beatIdx];
+        if(block){
+          // Different sounds per block type
+          const freqs = {move:500,jump:700,coin:1000,spike:200,sound:880,wait:330,collect_all:1200,reach_end:900,survive:400,score_target:1100};
+          const f = freqs[block] || 600;
+          playBeep(ctx, f, 0.06);
+        }
+      }
+    }
+    
+    beatIdx++;
+    playTimeout = setTimeout(playBeat, beatMs);
+  }
+  
+  playBeat();
+}
+
+// ===== Genre Selection =====
+function selectGenre(genre){
+  currentGenre = genre;
+  const data = GENRES[genre];
+  
+  // Update UI
+  document.querySelectorAll('.genre-btn').forEach(b=>b.classList.toggle('active', b.dataset.genre===genre));
+  document.getElementById('genreDesc').textContent = data.desc;
+  
+  // Change the block palette based on genre
+  // (for now just change the win conditions)
+  document.querySelectorAll('[data-block]').forEach(el=>{
+    const block = el.dataset.block;
+    if(['collect_all','reach_end','survive','score_target'].includes(block)){
+      el.style.display = data.winTypes.includes(block) ? 'flex' : 'none';
+    } else {
+      el.style.display = 'flex';
+    }
+  });
+  
+  // Vision: different genres would change:
+  // - Available block types
+  // - Track structure
+  // - Victory conditions  
+  // - Scoring criteria
+  // - Visual theme
+}
+
+// ===== Init =====
+document.addEventListener('DOMContentLoaded',function(){
+  renderHeader();
+  renderTracks();
+  
+  // Genre clicks
+  document.querySelectorAll('.genre-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>selectGenre(btn.dataset.genre));
+  });
+  
+  // Play button
+  document.getElementById('playBtn').addEventListener('click',playComposition);
+  
+  // Track selection
+  document.querySelectorAll('.track-item').forEach(item=>{
+    item.addEventListener('click',function(){
+      document.querySelectorAll('.track-item').forEach(t=>t.classList.remove('active'));
+      this.classList.add('active');
+      currentTrack = parseInt(this.dataset.track);
+    });
+  });
+  
+  // Keyboard shortcuts
+  document.addEventListener('keydown',function(e){
+    const map = {m:'move',j:'jump',c:'coin',s:'spike',a:'sound',w:'wait'};
+    const block = map[e.key.toLowerCase()];
+    if(block){
+      // Place on current track at first empty beat
+      for(let b=0;b<BEATS;b++){
+        if(!grid[currentTrack][b]){
+          grid[currentTrack][b] = block;
+          renderTracks();
+          break;
+        }
+      }
+    }
+    if(e.key === ' '){
+      e.preventDefault();
+      playComposition();
+    }
+  });
+  
+  // Info button
+  document.getElementById('infoBtn').addEventListener('click',function(){
+    const info = document.getElementById('genreInfo');
+    const data = GENRES[currentGenre];
+    document.getElementById('infoTitle').textContent = data.label;
+    document.getElementById('infoBody').innerHTML = `
+      <strong>Vibe:</strong> ${data.vibe}<br><br>
+      <strong>Scoring:</strong> ${data.scoring}<br><br>
+      <strong>Victory:</strong> ${data.victory}
+    `;
+    info.classList.toggle('show');
+  });
+  
+  document.getElementById('closeInfo').addEventListener('click',()=>{
+    document.getElementById('genreInfo').classList.remove('show');
+  });
+  
+  // Fill a demo composition
+  // Player track: move, move, jump, move, move, jump
+  grid[0][0]='move';grid[0][1]='move';grid[0][2]='jump';grid[0][4]='move';grid[0][5]='move';grid[0][6]='jump';
+  grid[1][3]='spike';grid[1][7]='spike';
+  grid[2][2]='coin';grid[2][5]='coin';grid[2][8]='coin';
+  grid[4][0]='sound';grid[4][4]='sound';grid[4][8]='sound';grid[4][12]='sound';
+  renderTracks();
+  
+  // Add CSS for highlight
+  const style = document.createElement('style');
+  style.textContent = `.cell.highlight{background:rgba(96,165,250,.25)!important}.cell.highlight::after{box-shadow:0 0 12px rgba(96,165,250,.6)!important}`;
+  document.head.appendChild(style);
+});
+</script>
+</body>
+</html>
