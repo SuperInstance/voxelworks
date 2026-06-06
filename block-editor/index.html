@@ -28,7 +28,8 @@
   /* layout consts */
   --palette-w:280px;
   --header-h:48px;
-  --output-h:180px;
+  --output-h:160px;
+  --stage-h:320px;
   /* block shape */
   --notch-h:8px;
   --bump-w:28px;
@@ -121,6 +122,54 @@ header button{
 .palette-block select{width:auto;min-width:48px;cursor:pointer}
 .palette-block input[type=number]{-moz-appearance:textfield}
 .palette-block input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
+
+/* ── Workspace Column ── */
+.workspace-col{
+  flex:1;display:flex;flex-direction:column;overflow:hidden;
+  background:var(--bg);
+}
+
+/* ── Stage ── */
+.stage{
+  height:var(--stage-h);flex-shrink:0;position:relative;overflow:hidden;
+  background:linear-gradient(180deg,#1a1a3e 0%,#0f0f2a 100%);
+  border-bottom:2px solid var(--border);display:flex;align-items:center;justify-content:center;
+  cursor:default
+}
+.stage canvas{
+  display:block;width:480px;height:320px;
+  image-rendering:pixelated;border-radius:4px;
+  box-shadow:0 0 40px rgba(108,108,224,.15),inset 0 0 60px rgba(0,0,0,.3);
+}
+.stage-label{
+  position:absolute;top:6px;left:10px;
+  font-size:10px;text-transform:uppercase;letter-spacing:1px;
+  color:var(--text2);opacity:.4;pointer-events:none;
+}
+
+/* ── Speech Bubble ── */
+.speech-bubble{
+  position:absolute;display:none;z-index:50;
+  background:#fff;color:#111;padding:8px 14px;border-radius:12px;
+  font-size:13px;font-weight:500;max-width:180px;
+  box-shadow:0 2px 12px rgba(0,0,0,.3);
+  white-space:pre-wrap;word-wrap:break-word;
+}
+.speech-bubble::after{
+  content:'';position:absolute;bottom:-10px;left:50%;transform:translateX(-50%);
+  width:0;height:0;
+  border-left:10px solid transparent;
+  border-right:10px solid transparent;
+  border-top:10px solid #fff;
+}
+.speech-bubble.think{
+  background:#ddd;border-radius:18px 18px 18px 4px;
+}
+.speech-bubble.think::after{display:none}
+.speech-bubble.think .dots{
+  display:inline-block;animation:think-dots 1.2s infinite;
+}
+@keyframes think-dots{0%,20%{opacity:.3}50%{opacity:1}80%,100%{opacity:.3}}
 
 /* ── Workspace ── */
 .workspace{
@@ -224,16 +273,24 @@ header button{
     <span class="header-hint">drag blocks → workspace</span>
     <span class="spacer"></span>
     <button id="btn-run">▶ Run</button>
+    <button id="btn-stop" style="display:none;background:#ff6b6b;border-color:#ff6b6b">■ Stop</button>
     <button id="btn-clear">✕ Clear</button>
   </header>
   <div class="main-area">
     <aside class="palette" id="palette"></aside>
-    <main class="workspace" id="workspace">
-      <div class="empty-hint" id="empty-hint">
-        <strong>⟐ Drop Blocks Here</strong>
-        Drag blocks from the palette to build your script
+    <div class="workspace-col">
+      <div class="stage" id="stage">
+        <span class="stage-label">▣ Stage</span>
+        <canvas id="stage-canvas" width="480" height="320"></canvas>
+        <div class="speech-bubble" id="speech-bubble"></div>
       </div>
-    </main>
+      <main class="workspace" id="workspace">
+        <div class="empty-hint" id="empty-hint">
+          <strong>⟐ Drop Blocks Here</strong>
+          Drag blocks from the palette to build your script
+        </div>
+      </main>
+    </div>
   </div>
   <div class="output-panel">
     <div class="output-header">
@@ -318,6 +375,118 @@ const paletteEl   = document.getElementById('palette');
 const outputEl    = document.getElementById('output-content');
 const outputStatus= document.getElementById('output-status');
 const emptyHint   = document.getElementById('empty-hint');
+const stageCanvas = document.getElementById('stage-canvas');
+const stageCtx    = stageCanvas ? stageCanvas.getContext('2d') : null;
+const speechBubble= document.getElementById('speech-bubble');
+
+// ── Sprite State ──
+const sprite = {
+  x: 240, y: 160,         // center of stage (480x320)
+  direction: 90,           // degrees: 0=up, 90=right (Scratch convention)
+  visible: true,
+  size: 100,               // percent
+  costume: 'default'
+};
+
+let executionRunning = false;
+let executionAborted = false;
+
+// Map stage coords (0..480, 0..320 Y-down) to canvas coords
+function drawSprite(){
+  if(!stageCtx) return;
+  const w=480, h=320;
+  stageCtx.clearRect(0,0,w,h);
+
+  // Stage background - subtle checker floor
+  const grad=stageCtx.createRadialGradient(240,160,20,240,160,200);
+  grad.addColorStop(0,'#2a2a5a');
+  grad.addColorStop(1,'#14142e');
+  stageCtx.fillStyle=grad;
+  stageCtx.fillRect(0,0,w,h);
+
+  // Grid lines
+  stageCtx.strokeStyle='rgba(255,255,255,.04)';
+  stageCtx.lineWidth=1;
+  for(let x=0;x<=w;x+=40){ stageCtx.beginPath();stageCtx.moveTo(x,0);stageCtx.lineTo(x,h);stageCtx.stroke(); }
+  for(let y=0;y<=h;y+=40){ stageCtx.beginPath();stageCtx.moveTo(0,y);stageCtx.lineTo(w,y);stageCtx.stroke(); }
+
+  if(!sprite.visible) return;
+
+  const cx=sprite.x, cy=sprite.y;
+  const s=sprite.size/100;
+
+  stageCtx.save();
+  stageCtx.translate(cx,cy);
+  // Scratch: 0=up, 90=right → canvas angle: -(dir-90) or (90-dir) in radians
+  // Actually, canvas 0° is right, going clockwise. Scratch 0° is up.
+  // So canvas angle = (Scratch dir - 90) * PI/180, but Scratch direction goes clockwise,
+  // and canvas positive angle goes clockwise too. So:
+  const angle = (sprite.direction - 90) * Math.PI / 180;
+  stageCtx.rotate(angle);
+  stageCtx.scale(s,s);
+
+  // Draw sprite as a cute arrow/cat-like triangle
+  // Body (rounded triangle shape)
+  stageCtx.beginPath();
+  stageCtx.moveTo(0,-20);   // nose
+  stageCtx.lineTo(-16,14);  // left bottom
+  stageCtx.lineTo(-8,18);
+  stageCtx.lineTo(0,12);    // tail indent
+  stageCtx.lineTo(8,18);
+  stageCtx.lineTo(16,14);   // right bottom
+  stageCtx.closePath();
+
+  // Fill gradient
+  const grad2=stageCtx.createLinearGradient(0,-20,0,20);
+  grad2.addColorStop(0,'#ff6b6b');
+  grad2.addColorStop(0.5,'#ee5a24');
+  grad2.addColorStop(1,'#d63031');
+  stageCtx.fillStyle=grad2;
+  stageCtx.fill();
+  stageCtx.strokeStyle='rgba(0,0,0,.3)';
+  stageCtx.lineWidth=1.5;
+  stageCtx.stroke();
+
+  // Eyes
+  stageCtx.fillStyle='#fff';
+  stageCtx.beginPath();
+  stageCtx.arc(-6,-6,4,0,Math.PI*2);
+  stageCtx.arc(6,-6,4,0,Math.PI*2);
+  stageCtx.fill();
+  stageCtx.fillStyle='#222';
+  stageCtx.beginPath();
+  stageCtx.arc(-6,-6,2,0,Math.PI*2);
+  stageCtx.arc(6,-6,2,0,Math.PI*2);
+  stageCtx.fill();
+
+  stageCtx.restore();
+}
+
+// Speech bubble
+function showSpeech(text, isThink, durationMs){
+  if(!speechBubble) return;
+  speechBubble.textContent=text;
+  speechBubble.className='speech-bubble'+(isThink?' think':'');
+  if(isThink) speechBubble.innerHTML=text.replace(/\.\.\./g,'<span class="dots">...</span>');
+  speechBubble.style.display='block';
+  // Position above sprite
+  const stage=document.getElementById('stage');
+  if(stage){
+    const stageRect=stage.getBoundingClientRect();
+    const scaleX=stageRect.width/480;
+    const scaleY=stageRect.height/320;
+    const bx=sprite.x*scaleX + stageRect.left;
+    const by=(sprite.y-60)*scaleY + stageRect.top;
+    // Convert to viewport coords then back
+    const relX=(sprite.x/480)*100;
+    const relY=(sprite.y/320)*100;
+    speechBubble.style.left=(sprite.x+20)+'px';
+    speechBubble.style.top=Math.max(0,sprite.y-65)+'px';
+  }
+}
+function hideSpeech(){
+  if(speechBubble) speechBubble.style.display='none';
+}
 
 // ────────────────────────────────────────
 //  HELPERS
@@ -368,9 +537,7 @@ function getStackBlocks(root){
 function getBlockHeight(inst){
   const el=inst.el;
   if(!el) return 40;
-  const body=el.querySelector('.block-body');
-  const bodyH=body ? Math.max(22,body.offsetHeight) : 22;
-  return bodyH + NOTCH_H + (inst.def.hat?0:NOTCH_H);
+  return el.offsetHeight;
 }
 
 /** Compute rendered width */
@@ -579,7 +746,7 @@ function clearAll(){
   [...instances].forEach(i=>{
     if(i.el&&i.el.parentNode) i.el.parentNode.removeChild(i.el);
   });
-  instances=[];
+  instances.length=0;
   updateEmptyHint();
   outputEl.textContent='';
   outputStatus.textContent='cleared';
@@ -817,18 +984,14 @@ function onDrag(e){
 /** Compute the total visual height of an entire stack from root.y to the last block's bump bottom */
 function getStackVisualHeight(root){
   const blocks=getStackBlocks(root);
+  if(blocks.length===0) return 0;
   let h=0;
   for(const b of blocks){
-    const el=b.el;
-    const body=el.querySelector('.block-body');
-    const bodyH=body ? Math.max(22,body.offsetHeight) : 22;
-    // bump is always NOTCH_H; shoulders only for non-hat
-    h += bodyH + NOTCH_H + (b.def.hat?0:NOTCH_H);
+    h += getBlockHeight(b);
   }
-  // Subtract NOTCH_H for each interlock between consecutive blocks
-  for(let i=0;i<blocks.length-1;i++){
-    h -= NOTCH_H;
-  }
+  // Add bump extension of last block, minus interlocks
+  h += NOTCH_H;
+  h -= NOTCH_H * (blocks.length - 1);
   return h;
 }
 
@@ -936,42 +1099,281 @@ function endDrag(e){
 }
 
 // ────────────────────────────────────────
-//  EXECUTION
+//  EXECUTION ENGINE
 // ────────────────────────────────────────
-function executeAll(){
+async function executeAll(){
+  if(executionRunning) return;
+  executionRunning=true;
+  executionAborted=false;
+
   outputEl.textContent='';
-  outputStatus.textContent='running...';
+  setRunningUI(true);
+
+  // Reset sprite
+  sprite.x=240; sprite.y=160; sprite.direction=90;
+  sprite.visible=true;
+  hideSpeech();
+  drawSprite();
 
   const roots=instances.filter(i=>i.parentId===null);
   if(roots.length===0){
     appendOutput('info','No blocks on workspace.');
-    outputStatus.textContent='done (idle)';
+    setRunningUI(false,'done (idle)');
+    executionRunning=false;
     return;
   }
 
-  let overallResult='✓ Completed';
+  try {
+    for(let ri=0; ri<roots.length; ri++){
+      if(executionAborted) break;
+      const root=roots[ri];
+      const blocks=getStackBlocks(root);
+      const stackName=blocks[0].def.label.replace(/%\d+/g,'[...]');
+      if(ri>0) appendOutput('','');
+      appendOutput('','── Stack '+(ri+1)+': "'+stackName+'" ──');
 
-  roots.forEach((root,ri)=>{
-    if(ri>0) appendOutput('','');
-    const blocks=getStackBlocks(root);
-    const stackName=blocks[0].def.label.replace(/%\d+/g,'[...]');
-    appendOutput('','── Stack '+(ri+1)+': "'+stackName+'" ──');
-    blocks.forEach(b=>{
-      const label=b.def.label;
-      // Replace %1, %2 etc. with actual field values
-      let desc=label;
-      let argIdx=0;
-      (b.def.args||[]).forEach(a=>{
-        const val=b.fields[a.key]!==undefined?b.fields[a.key]:a.def;
-        desc=desc.replace('%'+(argIdx+1),val);
-        argIdx++;
-      });
-      appendOutput('info','▶ '+desc);
-    });
-  });
+      // If the first block is "when clicked", it auto-triggers on Run
+      // For all stacks, execute blocks in order
+      let i=0;
+      while(i<blocks.length && !executionAborted){
+        const b=blocks[i];
+        const label=b.def.label;
+        let desc=label;
+        let argIdx=0;
+        (b.def.args||[]).forEach(a=>{
+          const val=b.fields[a.key]!==undefined?b.fields[a.key]:a.def;
+          desc=desc.replace('%'+(argIdx+1),val);
+          argIdx++;
+        });
+        appendOutput('info','▶ '+desc);
 
-  outputStatus.textContent='done ✓';
-  appendOutput('done',overallResult);
+        await executeBlockAction(b);
+
+        // If it's a control block like 'repeat', the child stack is handled internally
+        if(b.def.id==='repeat' || b.def.id==='if_then'){
+          // These blocks handle children in their own execution
+          // Skip to next sibling after this block's children
+          const child=getChild(b);
+          if(child){
+            // Child chain was already executed by the repeat/if_then handler
+            // Find the last child to advance past it
+            let lastChild=child;
+            while(getChild(lastChild)) lastChild=getChild(lastChild);
+            // Advance i past all children
+            while(i<blocks.length && blocks[i].id!==lastChild.id) i++;
+          }
+        }
+
+        i++;
+        // Small yield to keep UI responsive
+        if(i%3===0) await new Promise(r=>setTimeout(r,0));
+      }
+    }
+
+    if(executionAborted){
+      appendOutput('warn','⏸ Execution stopped');
+      outputStatus.textContent='stopped';
+    } else {
+      outputStatus.textContent='done ✓';
+      appendOutput('done','✓ Completed');
+    }
+  } catch(err){
+    appendOutput('error','✗ Error: '+escapeHtml(err.message));
+    outputStatus.textContent='error';
+    console.error('Execution error:',err);
+  }
+
+  executionRunning=false;
+  setRunningUI(false); // preserve existing status text
+}
+
+/** Execute a single block's action */
+async function executeBlockAction(inst){
+  const def=inst.def;
+  const f=inst.fields;
+
+  switch(def.id){
+    // ── Motion ──
+    case 'move_steps': {
+      const steps=parseFloat(f['%1'])||0;
+      // Scratch: 0°=up, 90°=right
+      const rad=(90-sprite.direction)*Math.PI/180;
+      sprite.x+=Math.cos(rad)*steps;
+      sprite.y-=Math.sin(rad)*steps;
+      // Clamp to stage
+      sprite.x=Math.max(10,Math.min(470,sprite.x));
+      sprite.y=Math.max(10,Math.min(310,sprite.y));
+      drawSprite();
+      await new Promise(r=>setTimeout(r,100));
+      break;
+    }
+    case 'turn_cw': {
+      sprite.direction=(sprite.direction+(parseFloat(f['%1'])||0))%360;
+      drawSprite();
+      await new Promise(r=>setTimeout(r,50));
+      break;
+    }
+    case 'turn_ccw': {
+      sprite.direction=(sprite.direction-(parseFloat(f['%1'])||0))%360;
+      if(sprite.direction<0) sprite.direction+=360;
+      drawSprite();
+      await new Promise(r=>setTimeout(r,50));
+      break;
+    }
+    case 'goto_xy': {
+      sprite.x=Math.max(10,Math.min(470,parseFloat(f['%1'])||0));
+      sprite.y=Math.max(10,Math.min(310,parseFloat(f['%2'])||0));
+      drawSprite();
+      await new Promise(r=>setTimeout(r,50));
+      break;
+    }
+    case 'jump': {
+      const origY=sprite.y;
+      sprite.y-=40; drawSprite();
+      await new Promise(r=>setTimeout(r,150));
+      sprite.y=origY; drawSprite();
+      await new Promise(r=>setTimeout(r,80));
+      break;
+    }
+
+    // ── Looks ──
+    case 'say': {
+      const text=f['%1']||'Hello!';
+      const secs=parseFloat(f['%2'])||2;
+      showSpeech(text,false,secs*1000);
+      await new Promise(r=>setTimeout(r,secs*1000));
+      hideSpeech();
+      break;
+    }
+    case 'think': {
+      const text=f['%1']||'Hmm...';
+      const secs=parseFloat(f['%2'])||2;
+      showSpeech(text,true,secs*1000);
+      await new Promise(r=>setTimeout(r,secs*1000));
+      hideSpeech();
+      break;
+    }
+    case 'show': {
+      if(!sprite.visible){
+        sprite.visible=true;
+        drawSprite();
+      }
+      break;
+    }
+    case 'hide': {
+      if(sprite.visible){
+        sprite.visible=false;
+        drawSprite();
+      }
+      break;
+    }
+
+    // ── Control ──
+    case 'when_clicked': {
+      // No-op; this is a hat marker, children execute naturally
+      break;
+    }
+    case 'wait': {
+      const secs=parseFloat(f['%1'])||1;
+      const until=Date.now()+secs*1000;
+      while(Date.now()<until && !executionAborted){
+        await new Promise(r=>setTimeout(r,50));
+      }
+      break;
+    }
+    case 'repeat': {
+      const n=parseInt(f['%1'])||1;
+      const child=getChild(inst);
+      if(!child) break;
+      const childBlocks=getStackBlocks(child);
+      for(let rpt=0; rpt<n && !executionAborted; rpt++){
+        appendOutput('info','  ↺ iteration '+(rpt+1)+'/'+n);
+        for(const cb of childBlocks){
+          if(executionAborted) break;
+          appendOutput('info','  ├▶ '+cb.def.label.replace(/%\d+/g,m=>{
+            const ai=parseInt(m.slice(1))-1;
+            const a=(cb.def.args||[])[ai];
+            if(!a) return m;
+            return String(cb.fields[a.key]!==undefined?cb.fields[a.key]:a.def);
+          }));
+          await executeBlockAction(cb);
+        }
+      }
+      break;
+    }
+    case 'if_then': {
+      const cond=f['%1']||'true';
+      let conditionMet=false;
+      switch(cond){
+        case 'true': conditionMet=true; break;
+        case 'false': conditionMet=false; break;
+        case 'edge':
+          conditionMet=(sprite.x<=15||sprite.x>=465||sprite.y<=15||sprite.y>=305);
+          break;
+        case 'color':
+          conditionMet=false; break;
+        default: conditionMet=(cond==='true');
+      }
+      if(conditionMet){
+        const child=getChild(inst);
+        if(child){
+          const childBlocks=getStackBlocks(child);
+          for(const cb of childBlocks){
+            if(executionAborted) break;
+            appendOutput('info','  └▶ '+cb.def.label.replace(/%\d+/g,m=>{
+              const ai=parseInt(m.slice(1))-1;
+              const a=(cb.def.args||[])[ai];
+              if(!a) return m;
+              return String(cb.fields[a.key]!==undefined?cb.fields[a.key]:a.def);
+            }));
+            await executeBlockAction(cb);
+          }
+        }
+      } else {
+        appendOutput('info','  └ condition false, skipped');
+      }
+      break;
+    }
+
+    // ── Sound ──
+    case 'play_sound': {
+      const sound=f['%1']||'meow';
+      appendOutput('info','  ♪ playing "'+escapeHtml(sound)+'"');
+      // Visual flash feedback
+      if(stageCanvas){
+        stageCanvas.style.transition='box-shadow .1s';
+        stageCanvas.style.boxShadow='0 0 30px rgba(207,99,207,.5)';
+        await new Promise(r=>setTimeout(r,300));
+        stageCanvas.style.boxShadow='';
+      }
+      break;
+    }
+    case 'stop_sound': {
+      appendOutput('info','  ♪ sounds stopped');
+      if(stageCanvas) stageCanvas.style.boxShadow='';
+      break;
+    }
+    case 'play_drum': {
+      const drum=f['%1']||'snare';
+      const beats=parseFloat(f['%2'])||0.25;
+      appendOutput('info','  � playing '+escapeHtml(drum)+' for '+beats+' beats');
+      // Visual flash
+      if(stageCanvas){
+        stageCanvas.style.transition='box-shadow .1s';
+        stageCanvas.style.boxShadow='0 0 20px rgba(255,255,255,.3)';
+        await new Promise(r=>setTimeout(r,beats*500));
+        stageCanvas.style.boxShadow='';
+      }
+      break;
+    }
+  }
+}
+
+function stopExecution(){
+  if(executionRunning){
+    executionAborted=true;
+    hideSpeech();
+  }
 }
 
 function appendOutput(cls,text){
@@ -993,7 +1395,20 @@ function escapeHtml(s){
 // ────────────────────────────────────────
 document.addEventListener('keydown',e=>{
   if(e.key==='r'||e.key==='R'){
-    if(!e.ctrlKey&&!e.metaKey) executeAll();
+    if(!e.ctrlKey&&!e.metaKey) {
+      if(executionRunning) stopExecution();
+      else executeAll();
+    }
+  }
+  if(e.key===' '){
+    e.preventDefault();
+    if(!e.ctrlKey&&!e.metaKey) {
+      if(executionRunning) stopExecution();
+      else executeAll();
+    }
+  }
+  if(e.key==='Escape'){
+    if(executionRunning) stopExecution();
   }
   if(e.key==='Delete'||e.key==='Backspace'){
     // Delete selected block if any (we don't have selection, so skip)
@@ -1012,12 +1427,47 @@ if(firstCat){
   firstCat.querySelector('.arrow').classList.add('open');
 }
 
-// Button handlers
-document.getElementById('btn-run').addEventListener('click',executeAll);
+const btnRun  = document.getElementById('btn-run');
+const btnStop = document.getElementById('btn-stop');
+
+function setRunningUI(running, statusText){
+  btnRun.style.display=running?'none':'';
+  btnStop.style.display=running?'':'none';
+  if(statusText!==undefined) outputStatus.textContent=statusText;
+  else if(running) outputStatus.textContent='running...';
+}
+
+btnRun.addEventListener('click',()=>{ executeAll(); });
+btnStop.addEventListener('click',()=>{ stopExecution(); });
+
 document.getElementById('btn-clear').addEventListener('click',()=>{
+  if(executionRunning) stopExecution();
   clearAll();
   renderAll();
+  sprite.x=240; sprite.y=160; sprite.direction=90;
+  sprite.visible=true;
+  hideSpeech();
+  drawSprite();
+  setRunningUI(false);
 });
+
+// Stage click → run "when clicked" stacks
+const stageEl = document.getElementById('stage');
+if(stageEl){
+  stageEl.addEventListener('click',(e)=>{
+    if(e.target.tagName==='CANVAS' || e.target===stageEl){
+      // Find all "when clicked" hat blocks
+      const roots=instances.filter(i=>i.parentId===null);
+      const clickedRoots=roots.filter(r=>r.def.id==='when_clicked');
+      if(clickedRoots.length>0 && !executionRunning){
+        executeAll();
+      }
+    }
+  });
+}
+
+// Initial sprite draw
+if(stageCtx) drawSprite();
 
 updateEmptyHint();
 appendOutput('info','Block Studio ready. Drag blocks from the palette to begin.');
