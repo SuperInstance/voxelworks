@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoxelWorks Hub</title>
+<style>
+/* ===== RESET & BASE ===== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden}
+body{
+  font-family:'Courier New',Courier,monospace;
+  background:#1a0f0a;
+  display:flex;justify-content:center;align-items:center;
+  min-height:100vh;min-width:100vw;
+}
+
+/* ===== SCENE WRAPPER ===== */
+.scene{
+  position:relative;
+  width:820px;height:560px;
+  background:#2a1a10;
+  border-radius:12px;
+  box-shadow:0 0 60px rgba(200,100,30,0.3),inset 0 0 120px rgba(80,40,10,0.4);
+  overflow:hidden;
+}
+
+/* ===== VOXEL GRID FLOOR ===== */
+.floor{
+  position:absolute;bottom:0;left:0;right:0;height:100px;
+  display:flex;flex-wrap:wrap;
+}
+.floor-block{
+  width:20px;height:20px;
+  background:#7a5c28;
+  border:1px solid #5c4218;
+  box-shadow:inset 0 0 4px rgba(255,200,100,0.08);
+}
+.floor-block:nth-child(2n){background:#6e4f20}
+.floor-block:nth-child(3n){background:#846630}
+.floor-block:nth-child(5n+1){background:#7a5c28}
+/* floor base beam */
+.floor-beam{
+  position:absolute;bottom:98px;left:0;right:0;height:4px;
+  background:#5c4218;box-shadow:0 0 6px rgba(0,0,0,0.3);
+}
+
+/* ===== WALLS ===== */
+.wall{
+  position:absolute;top:0;left:0;right:0;bottom:100px;
+  background:
+    linear-gradient(90deg,#c9a876 0%,#d4b08a 50%,#c9a876 100%);
+  z-index:0;
+}
+/* subtle brick pattern */
+.wall::after{
+  content:'';position:absolute;inset:0;
+  background-image:
+    linear-gradient(0deg,transparent 19px,rgba(140,90,50,0.08) 19px,rgba(140,90,50,0.08) 20px),
+    linear-gradient(90deg,transparent 39px,rgba(140,90,50,0.06) 39px,rgba(140,90,50,0.06) 40px);
+  background-size:40px 20px;
+}
+
+/* ===== WALL TRIM ===== */
+.wall-trim-top{
+  position:absolute;top:0;left:0;right:0;height:8px;
+  background:linear-gradient(90deg,#6b4a1e,#8b6430,#6b4a1e);
+  z-index:1;
+}
+.wall-trim-bottom{
+  position:absolute;bottom:100px;left:0;right:0;height:10px;
+  background:linear-gradient(90deg,#5c3a14,#7a5428,#5c3a14);
+  z-index:1;
+}
+
+/* ===== FIREPLACE ===== */
+.fireplace{
+  position:absolute;bottom:108px;left:40px;
+  width:160px;height:200px;
+  z-index:2;
+}
+.fireplace-body{
+  position:absolute;bottom:0;left:10px;right:10px;height:170px;
+  background:
+    linear-gradient(90deg,#7a3e1a 0%,#8b4a22 20%,#7a3e1a 40%,#8b4a22 60%,#7a3e1a 80%,#8b4a22 100%);
+  border:2px solid #5a2810;
+  border-radius:4px 4px 0 0;
+  box-shadow:inset 0 -20px 40px rgba(0,0,0,0.3);
+}
+/* brick pattern on fireplace */
+.fireplace-body::after{
+  content:'';position:absolute;inset:0;
+  background-image:
+    linear-gradient(0deg,transparent 11px,rgba(0,0,0,0.15) 11px,rgba(0,0,0,0.15) 12px),
+    linear-gradient(90deg,transparent 19px,rgba(0,0,0,0.1) 19px,rgba(0,0,0,0.1) 20px);
+  background-size:20px 12px;
+}
+.fireplace-mantle{
+  position:absolute;top:20px;left:0;right:0;height:16px;
+  background:linear-gradient(90deg,#5c3018,#7a4428,#5c3018);
+  border:2px solid #3e1e0e;
+  border-radius:3px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.3);
+}
+.fireplace-top{
+  position:absolute;top:0;left:5px;right:5px;height:10px;
+  background:#c9a876;
+  border:2px solid #8b6a3a;
+  border-radius:3px 3px 0 0;
+}
+/* hearth */
+.fireplace-hearth{
+  position:absolute;bottom:-10px;left:-10px;right:-10px;height:16px;
+  background:linear-gradient(90deg,#5c3818,#7a5028,#5c3818);
+  border:2px solid #3e2210;
+  border-radius:3px;
+}
+/* fire opening */
+.fireplace-opening{
+  position:absolute;bottom:12px;left:30px;right:30px;height:90px;
+  background:#1a0a05;
+  border-radius:20px 20px 6px 6px;
+  border:3px solid #3e1e0e;
+  overflow:hidden;
+}
+
+/* ===== FIRE & GLOW ===== */
+.fire-glow{
+  position:absolute;bottom:0;left:-40px;right:-40px;height:40px;
+  background:radial-gradient(ellipse at center,rgba(255,150,50,0.4),transparent 70%);
+  animation:glow-pulse 2s ease-in-out infinite;
+}
+@keyframes glow-pulse{
+  0%,100%{opacity:0.5;transform:scaleY(1)}
+  50%{opacity:0.9;transform:scaleY(1.3)}
+}
+.fire-particle{
+  position:absolute;bottom:10px;
+  width:6px;height:6px;
+  border-radius:50%;
+  background:orange;
+  animation:fire-rise 2.5s ease-out infinite;
+  opacity:0;
+}
+.fire-particle:nth-child(1){left:20px;animation-delay:0s}
+.fire-particle:nth-child(2){left:35px;animation-delay:0.4s}
+.fire-particle:nth-child(3){left:50px;animation-delay:0.8s}
+.fire-particle:nth-child(4){left:65px;animation-delay:1.2s}
+.fire-particle:nth-child(5){left:80px;animation-delay:1.6s}
+.fire-particle:nth-child(6){left:28px;animation-delay:0.2s;width:4px;height:4px}
+.fire-particle:nth-child(7){left:45px;animation-delay:0.6s;width:5px;height:5px}
+.fire-particle:nth-child(8){left:55px;animation-delay:1s;width:4px;height:4px}
+.fire-particle:nth-child(9){left:70px;animation-delay:1.4s;width:5px;height:5px}
+.fire-particle:nth-child(10){left:40px;animation-delay:0.3s}
+@keyframes fire-rise{
+  0%{transform:translateY(0) scale(1);opacity:0.9;background:#ff6600}
+  30%{opacity:0.8;background:#ff8800}
+  60%{opacity:0.4;background:#ffaa33}
+  100%{transform:translateY(-80px) scale(0.3);opacity:0;background:#ffcc66}
+}
+
+/* ===== WINDOW ===== */
+.window{
+  position:absolute;bottom:160px;left:290px;
+  width:140px;height:180px;
+  z-index:2;
+  cursor:pointer;
+  transition:transform 0.2s;
+}
+.window:hover{transform:scale(1.03)}
+.window-frame{
+  position:absolute;inset:0;
+  background:#5c3818;
+  border:4px solid #3e2210;
+  border-radius:6px;
+  box-shadow:inset 0 0 20px rgba(0,0,0,0.3);
+}
+.window-pane{
+  position:absolute;top:8px;left:8px;right:8px;bottom:8px;
+  background:linear-gradient(180deg,#87CEEB 0%,#a8d8ea 50%,#c8e6c9 100%);
+  border-radius:3px;
+  overflow:hidden;
+  transition:background 0.8s;
+}
+/* window cross bars */
+.window-cross-h{
+  position:absolute;top:50%;left:8px;right:8px;height:4px;
+  background:#5c3818;z-index:3;margin-top:-2px;
+  border-radius:2px;
+}
+.window-cross-v{
+  position:absolute;left:50%;top:8px;bottom:8px;width:4px;
+  background:#5c3818;z-index:3;margin-left:-2px;
+  border-radius:2px;
+}
+/* window sill */
+.window-sill{
+  position:absolute;bottom:-8px;left:-6px;right:-6px;height:10px;
+  background:#6b4420;
+  border:2px solid #3e2210;
+  border-radius:2px;
+}
+/* curtains */
+.curtain{
+  position:absolute;top:-4px;width:20px;bottom:-4px;
+  background:linear-gradient(180deg,#8b3a3a,#6b2a2a);
+  border:2px solid #4a1a1a;
+  z-index:4;
+}
+.curtain-l{left:-6px;border-radius:3px 0 0 3px}
+.curtain-r{right:-6px;border-radius:0 3px 3px 0}
+
+/* ===== BOOKSHELF ===== */
+.bookshelf{
+  position:absolute;bottom:108px;left:268px;
+  width:120px;height:200px;
+  z-index:2;
+  cursor:pointer;
+  transition:transform 0.2s;
+}
+.bookshelf:hover{transform:scale(1.02)}
+.bookshelf-body{
+  position:absolute;inset:0;
+  background:#6b3a20;
+  border:3px solid #3e1e0e;
+  border-radius:4px;
+  box-shadow:inset 0 0 20px rgba(0,0,0,0.2);
+}
+.bookshelf-shelf{
+  position:absolute;left:4px;right:4px;height:4px;
+  background:#4a2810;
+  border-radius:2px;
+}
+.bookshelf-shelf:nth-child(1){top:50px}
+.bookshelf-shelf:nth-child(2){top:100px}
+.bookshelf-shelf:nth-child(3){top:150px}
+/* books */
+.book{
+  position:absolute;bottom:2px;
+  width:10px;border-radius:2px 1px 1px 2px;
+  transition:transform 0.2s;
+  cursor:pointer;
+}
+.book:hover{transform:translateY(-3px)}
+.book-1{left:8px;height:44px;background:#e74c3c}
+.book-2{left:20px;height:36px;background:#3498db}
+.book-3{left:32px;height:48px;background:#2ecc71}
+.book-4{left:44px;height:30px;background:#f39c12}
+.book-5{left:56px;height:42px;background:#9b59b6}
+.book-6{left:68px;height:38px;background:#1abc9c}
+.book-7{left:80px;height:46px;background:#e67e22}
+.book-8{left:92px;height:32px;background:#e91e63}
+.book-9{left:104px;height:40px;background:#00bcd4}
+/* shelf 2 books */
+.book-s2{position:absolute;top:54px;width:10px;border-radius:2px 1px 1px 2px;
+  transition:transform 0.2s;cursor:pointer;}
+.book-s2:hover{transform:translateY(-3px)}
+.book-s2-1{left:8px;height:42px;background:#ff5722}
+.book-s2-2{left:20px;height:36px;background:#607d8b}
+.book-s2-3{left:32px;height:48px;background:#795548}
+.book-s2-4{left:44px;height:30px;background:#3f51b5}
+.book-s2-5{left:56px;height:40px;background:#8bc34a}
+.book-s2-6{left:68px;height:44px;background:#ff9800}
+/* shelf 3 books */
+.book-s3{position:absolute;top:104px;width:10px;border-radius:2px 1px 1px 2px;
+  transition:transform 0.2s;cursor:pointer;}
+.book-s3:hover{transform:translateY(-3px)}
+.book-s3-1{left:8px;height:38px;background:#673ab7}
+.book-s3-2{left:20px;height:42px;background:#ffeb3b;border:1px solid #ccc}
+.book-s3-3{left:32px;height:34px;background:#009688}
+.book-s3-4{left:44px;height:44px;background:#f44336}
+/* bookshelf top decoration */
+.bookshelf-top{
+  position:absolute;top:-8px;left:-4px;right:-4px;height:10px;
+  background:#7a4828;
+  border:2px solid #3e1e0e;
+  border-radius:3px 3px 0 0;
+}
+
+/* ===== DESK ===== */
+.desk{
+  position:absolute;bottom:108px;right:150px;
+  width:180px;height:120px;
+  z-index:2;
+  cursor:pointer;
+  transition:transform 0.2s;
+}
+.desk:hover{transform:scale(1.02)}
+.desk-top{
+  position:absolute;top:0;left:0;right:0;height:12px;
+  background:linear-gradient(90deg,#8b5a2a,#a07038,#8b5a2a);
+  border:2px solid #5a3818;
+  border-radius:3px;
+  box-shadow:0 2px 6px rgba(0,0,0,0.2);
+}
+.desk-leg-l,.desk-leg-r{
+  position:absolute;top:12px;bottom:0;width:10px;
+  background:linear-gradient(90deg,#5a3818,#7a5428,#5a3818);
+  border:1px solid #3e220e;
+}
+.desk-leg-l{left:15px}
+.desk-leg-r{right:15px}
+.desk-leg-c{position:absolute;top:12px;bottom:0;left:50%;width:8px;
+  margin-left:-4px;background:#6b4820;border:1px solid #3e220e;}
+/* monitor on desk */
+.desk-monitor{
+  position:absolute;top:-55px;left:50%;transform:translateX(-50%);
+  width:70px;
+  cursor:pointer;
+}
+.desk-monitor-screen{
+  width:70px;height:50px;
+  background:linear-gradient(180deg,#1a3a5c,#0d2137);
+  border:4px solid #333;
+  border-radius:4px;
+  position:relative;
+  overflow:hidden;
+}
+.desk-monitor-screen::after{
+  content:'';
+  position:absolute;left:5px;right:5px;top:5px;bottom:5px;
+  background:linear-gradient(180deg,rgba(100,200,255,0.08),rgba(50,150,255,0.03));
+  border-radius:2px;
+  box-shadow:0 0 6px rgba(100,200,255,0.15),inset 0 0 20px rgba(0,50,100,0.3);
+}
+.desk-monitor-stand{
+  width:20px;height:8px;
+  background:#444;margin:0 auto;
+  border-radius:0 0 2px 2px;
+}
+.desk-monitor-base{
+  width:40px;height:4px;
+  background:#555;margin:0 auto;
+  border-radius:2px;
+}
+
+/* ===== DOOR ===== */
+.door{
+  position:absolute;bottom:108px;right:20px;
+  width:90px;height:200px;
+  z-index:2;
+  cursor:pointer;
+  transition:transform 0.2s;
+}
+.door:hover{transform:scale(1.03) translateX(-3px)}
+.door-body{
+  position:absolute;inset:0;
+  background:linear-gradient(90deg,#5a3418,#6b4420,#5a3418);
+  border:4px solid #3a1e0a;
+  border-radius:4px 4px 0 0;
+  box-shadow:inset 0 0 20px rgba(0,0,0,0.2);
+}
+/* door panels */
+.door-panel-top{
+  position:absolute;top:15px;left:10px;right:10px;height:70px;
+  border:2px solid #3a1e0a;
+  border-radius:3px;
+  background:rgba(0,0,0,0.1);
+}
+.door-panel-bottom{
+  position:absolute;bottom:15px;left:10px;right:10px;height:70px;
+  border:2px solid #3a1e0a;
+  border-radius:3px;
+  background:rgba(0,0,0,0.1);
+}
+.door-knob{
+  position:absolute;right:12px;top:50%;
+  width:10px;height:10px;
+  background:radial-gradient(circle at 30% 30%,#d4a030,#8b7020);
+  border:2px solid #5a4a18;
+  border-radius:50%;
+  box-shadow:0 1px 3px rgba(0,0,0,0.3);
+}
+.door-frame{
+  position:absolute;inset:-6px;
+  border:4px solid #3a1e0a;
+  border-radius:5px;
+  pointer-events:none;
+}
+.door-arch{
+  position:absolute;top:-20px;left:-2px;right:-2px;height:22px;
+  background:#c9a876;
+  border:3px solid #3a1e0a;
+  border-bottom:none;
+  border-radius:12px 12px 0 0;
+}
+
+/* ===== BUDDY ===== */
+.buddy{
+  position:absolute;bottom:110px;left:160px;
+  z-index:3;
+  cursor:pointer;
+  animation:buddy-breathe 3s ease-in-out infinite;
+}
+@keyframes buddy-breathe{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-4px)}
+}
+.buddy-head{
+  width:40px;height:40px;
+  background:#6bc9ff;
+  border:3px solid #3a8abf;
+  border-radius:6px;
+  margin:0 auto;
+  position:relative;
+  box-shadow:inset 0 -4px 0 rgba(0,0,0,0.15);
+}
+.buddy-eye{
+  position:absolute;width:6px;height:7px;
+  background:#1a1a2e;
+  border-radius:50%;
+  top:14px;
+  animation:buddy-blink 4s ease-in-out infinite;
+}
+@keyframes buddy-blink{
+  0%,45%,55%,100%{transform:scaleY(1)}
+  50%{transform:scaleY(0.1)}
+}
+.buddy-eye-l{left:10px}
+.buddy-eye-r{right:10px}
+.buddy-mouth{
+  position:absolute;bottom:8px;left:12px;right:12px;height:4px;
+  background:#2a6a9a;
+  border-radius:0 0 4px 4px;
+}
+.buddy-torso{
+  position:absolute;inset:0;
+  overflow:hidden;
+  border-radius:0 0 6px 6px;
+}
+.buddy-body{
+  width:44px;height:36px;
+  background:#5ab8f0;
+  border:3px solid #3a8abf;
+  border-top:none;
+  border-radius:0 0 6px 6px;
+  margin:0 auto;
+  position:relative;
+  box-shadow:inset 0 -4px 0 rgba(0,0,0,0.1);
+}
+.buddy-arm{
+  position:absolute;top:4px;width:10px;height:28px;
+  background:#5ab8f0;
+  border:3px solid #3a8abf;
+  border-radius:4px;
+  animation:buddy-arm-swing 4s ease-in-out infinite;
+}
+.buddy-arm-l{left:-10px;transform-origin:top right}
+.buddy-arm-r{right:-10px;transform-origin:top left}
+@keyframes buddy-arm-swing{
+  0%,100%{transform:rotate(-5deg)}
+  50%{transform:rotate(5deg)}
+}
+.buddy-feet{
+  display:flex;justify-content:center;gap:8px;margin-top:-2px;
+}
+.buddy-foot{
+  width:16px;height:10px;
+  background:#4a9ad0;
+  border:3px solid #2a7aaa;
+  border-radius:0 0 4px 4px;
+  border-top:none;
+}
+
+/* ===== CHAT PANEL ===== */
+.chat-overlay{
+  position:fixed;inset:0;z-index:100;
+  background:rgba(0,0,0,0.3);
+  opacity:0;pointer-events:none;
+  transition:opacity 0.3s;
+}
+.chat-overlay.active{opacity:1;pointer-events:auto}
+.chat-panel{
+  position:fixed;top:0;right:-400px;bottom:0;width:380px;
+  z-index:101;
+  background:rgba(26,15,10,0.92);
+  backdrop-filter:blur(12px);
+  border-left:3px solid rgba(200,150,80,0.3);
+  box-shadow:-10px 0 40px rgba(0,0,0,0.5);
+  display:flex;flex-direction:column;
+  transition:right 0.4s cubic-bezier(0.22,1,0.36,1);
+}
+.chat-panel.active{right:0}
+.chat-header{
+  padding:16px 20px 12px;
+  border-bottom:2px solid rgba(200,150,80,0.2);
+  display:flex;align-items:center;gap:12px;
+}
+.chat-header-icon{
+  width:36px;height:36px;
+  background:#6bc9ff;border:2px solid #3a8abf;
+  border-radius:6px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;color:#1a1a2e;
+}
+.chat-header h2{
+  font-size:16px;color:#e8d5b0;
+  font-family:'Courier New',monospace;
+  flex:1;
+}
+.chat-close{
+  width:32px;height:32px;
+  background:rgba(255,255,255,0.05);
+  border:1px solid rgba(200,150,80,0.2);
+  border-radius:6px;
+  color:#c9a876;font-size:18px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background 0.2s;
+}
+.chat-close:hover{background:rgba(255,80,80,0.15);color:#ff6b6b}
+.chat-messages{
+  flex:1;overflow-y:auto;padding:16px 20px;
+  display:flex;flex-direction:column;gap:10px;
+}
+.chat-message{
+  max-width:85%;padding:8px 14px;
+  border-radius:12px;font-size:13px;line-height:1.5;
+  animation:msg-in 0.3s ease-out;
+}
+@keyframes msg-in{
+  from{opacity:0;transform:translateY(10px) scale(0.95)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+.chat-message.buddy{
+  align-self:flex-start;
+  background:rgba(107,201,255,0.12);
+  border:1px solid rgba(107,201,255,0.2);
+  color:#c8e6f0;
+  border-radius:12px 12px 12px 4px;
+}
+.chat-message.user{
+  align-self:flex-end;
+  background:rgba(200,150,80,0.12);
+  border:1px solid rgba(200,150,80,0.2);
+  color:#e8d5b0;
+  border-radius:12px 12px 4px 12px;
+}
+.chat-input-area{
+  padding:12px 20px 20px;
+  border-top:2px solid rgba(200,150,80,0.1);
+  display:flex;gap:8px;
+}
+.chat-input{
+  flex:1;padding:10px 14px;
+  background:rgba(255,255,255,0.06);
+  border:2px solid rgba(200,150,80,0.15);
+  border-radius:8px;
+  color:#e8d5b0;font-size:13px;
+  font-family:'Courier New',monospace;
+  outline:none;
+  transition:border-color 0.2s;
+}
+.chat-input:focus{border-color:rgba(107,201,255,0.4)}
+.chat-input::placeholder{color:rgba(200,150,80,0.3)}
+.chat-send{
+  padding:10px 16px;
+  background:rgba(107,201,255,0.15);
+  border:2px solid rgba(107,201,255,0.2);
+  border-radius:8px;
+  color:#6bc9ff;font-size:13px;font-weight:bold;
+  cursor:pointer;transition:background 0.2s;
+  font-family:'Courier New',monospace;
+}
+.chat-send:hover{background:rgba(107,201,255,0.25)}
+.chat-send:disabled{opacity:0.4;cursor:default}
+
+/* ===== OVERLAYS ===== */
+.overlay{
+  position:fixed;inset:0;z-index:200;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;
+  transition:opacity 0.3s;
+}
+.overlay.active{opacity:1;pointer-events:auto}
+.overlay-bg{
+  position:absolute;inset:0;
+  background:rgba(0,0,0,0.6);
+  backdrop-filter:blur(6px);
+}
+.overlay-content{
+  position:relative;z-index:1;
+  background:linear-gradient(180deg,#2a1a10,#1a0f08);
+  border:3px solid rgba(200,150,80,0.3);
+  border-radius:16px;
+  padding:28px 32px;
+  max-width:400px;width:90%;
+  box-shadow:0 20px 60px rgba(0,0,0,0.6);
+  animation:overlay-in 0.3s ease-out;
+}
+@keyframes overlay-in{
+  from{opacity:0;transform:scale(0.9) translateY(20px)}
+  to{opacity:1;transform:scale(1) translateY(0)}
+}
+.overlay-content h2{
+  font-size:20px;color:#e8d5b0;margin-bottom:16px;
+  text-align:center;
+}
+.overlay-content p{
+  color:#c9a876;font-size:14px;line-height:1.6;
+  margin-bottom:12px;
+}
+.overlay-close{
+  display:block;margin:16px auto 0;padding:8px 24px;
+  background:rgba(200,150,80,0.12);
+  border:2px solid rgba(200,150,80,0.2);
+  border-radius:8px;color:#c9a876;
+  cursor:pointer;font-family:'Courier New',monospace;
+  font-size:14px;transition:background 0.2s;
+}
+.overlay-close:hover{background:rgba(200,150,80,0.2)}
+
+/* project list */
+.project-list{
+  list-style:none;padding:0;
+}
+.project-list li{
+  padding:10px 14px;margin-bottom:6px;
+  background:rgba(200,150,80,0.06);
+  border:1px solid rgba(200,150,80,0.1);
+  border-radius:8px;color:#d4b08a;
+  font-size:14px;cursor:pointer;
+  transition:background 0.2s;
+  display:flex;align-items:center;gap:10px;
+}
+.project-list li:hover{background:rgba(200,150,80,0.12)}
+.project-icon{font-size:18px}
+
+/* room list for door */
+.room-list{
+  display:flex;flex-direction:column;gap:8px;
+}
+.room-item{
+  padding:12px 16px;
+  background:rgba(200,150,80,0.06);
+  border:2px solid rgba(200,150,80,0.1);
+  border-radius:10px;color:#d4b08a;
+  font-size:15px;cursor:pointer;
+  transition:all 0.2s;
+  display:flex;align-items:center;gap:10px;
+}
+.room-item:hover{
+  background:rgba(200,150,80,0.15);
+  border-color:rgba(200,150,80,0.3);
+  transform:translateX(4px);
+}
+.room-icon{font-size:20px}
+
+/* ===== TRAVEL ANIMATION ===== */
+.travel-overlay{
+  position:fixed;inset:0;z-index:300;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;
+  transition:opacity 0.3s;
+}
+.travel-overlay.active{opacity:1;pointer-events:auto}
+.travel-bg{
+  position:absolute;inset:0;
+  background:#0a0503;
+}
+.travel-content{
+  position:relative;z-index:1;text-align:center;
+  animation:travel-pulse 1.2s ease-in-out infinite;
+}
+@keyframes travel-pulse{
+  0%,100%{transform:scale(1);opacity:1}
+  50%{transform:scale(1.05);opacity:0.7}
+}
+.travel-spinner{
+  width:40px;height:40px;margin:0 auto 20px;
+  border:4px solid rgba(200,150,80,0.1);
+  border-top-color:#6bc9ff;
+  border-radius:50%;
+  animation:spin 0.8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.travel-text{
+  color:#e8d5b0;font-size:18px;
+  font-family:'Courier New',monospace;
+}
+
+/* room arrival overlay */
+.arrival-overlay{
+  position:fixed;inset:0;z-index:400;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;
+  transition:opacity 0.5s;
+}
+.arrival-overlay.active{opacity:1;pointer-events:auto}
+.arrival-bg{
+  position:absolute;inset:0;
+  background:rgba(0,0,0,0.7);
+  backdrop-filter:blur(8px);
+}
+.arrival-content{
+  position:relative;z-index:1;
+  background:linear-gradient(180deg,#2a1a10,#1a0f08);
+  border:3px solid rgba(200,150,80,0.3);
+  border-radius:16px;
+  padding:32px;max-width:380px;width:90%;
+  text-align:center;
+  animation:overlay-in 0.4s ease-out;
+}
+.arrival-content h2{
+  font-size:22px;color:#e8d5b0;margin-bottom:8px;
+}
+.arrival-content p{
+  color:#c9a876;margin-bottom:20px;font-size:14px;
+}
+
+/* ===== SCROLLBAR ===== */
+.chat-messages::-webkit-scrollbar{width:6px}
+.chat-messages::-webkit-scrollbar-track{background:rgba(0,0,0,0.2)}
+.chat-messages::-webkit-scrollbar-thumb{background:rgba(200,150,80,0.2);border-radius:3px}
+
+/* ===== TITLE ===== */
+.room-title{
+  position:absolute;top:12px;left:50%;transform:translateX(-50%);
+  z-index:5;
+  font-size:13px;color:rgba(200,150,80,0.5);
+  letter-spacing:3px;text-transform:uppercase;
+  font-family:'Courier New',monospace;
+}
+
+/* ===== WINDOW THEMES ===== */
+.window-theme-sunset .window-pane{background:linear-gradient(180deg,#ff6b35,#ff9f43,#ffc048)}
+.window-theme-night .window-pane{background:linear-gradient(180deg,#0a0a2e,#1a1a4e,#2a2a5e)}
+.window-theme-forest .window-pane{background:linear-gradient(180deg,#2d5a27,#4a7a3a,#6a9a5a)}
+.window-theme-ocean .window-pane{background:linear-gradient(180deg,#1a5276,#2980b9,#5dade2)}
+.window-theme-aurora .window-pane{background:linear-gradient(180deg,#0d1b2a,#1b2d4a,#2d4a6a)}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:860px){
+  .scene{width:100vw;height:100vh;border-radius:0}
+  .room-title{font-size:11px}
+}
+@media(max-width:600px){
+  .chat-panel{width:100vw;right:-100vw}
+  .fireplace{left:10px;width:120px}
+  .fireplace-opening{left:20px;right:20px}
+  .window{left:200px;width:100px;height:130px}
+  .bookshelf{left:180px;width:90px;height:160px}
+  .desk{right:80px;width:140px;height:100px}
+  .door{right:10px;width:70px;height:160px}
+  .buddy{left:120px}
+}
+</style>
+</head>
+<body>
+
+<div class="scene" id="scene">
+  <!-- Room title -->
+  <div class="room-title">✦ VoxelWorks Hub ✦</div>
+
+  <!-- Walls -->
+  <div class="wall"></div>
+  <div class="wall-trim-top"></div>
+  <div class="wall-trim-bottom"></div>
+
+  <!-- Floor -->
+  <div class="floor" id="floor"></div>
+  <div class="floor-beam"></div>
+
+  <!-- Fireplace -->
+  <div class="fireplace" id="fireplace" title="Click for cozy vibes!">
+    <div class="fireplace-top"></div>
+    <div class="fireplace-mantle"></div>
+    <div class="fireplace-body">
+      <div class="fireplace-opening">
+        <div class="fire-glow"></div>
+        <div class="fire-particle"></div>
+        <div class="fire-particle"></div>
+        <div class="fire-particle"></div>
+        <div class="fire-particle"></div>
+        <div class="fire-particle"></div>
+        <div class="fire-particle"></div>
+        <div class="fire-particle"></div>
+        <div class="fire-particle"></div>
+        <div class="fire-particle"></div>
+      </div>
+    </div>
+    <div class="fireplace-hearth"></div>
+  </div>
+
+  <!-- Window -->
+  <div class="window" id="window" title="Look outside!">
+    <div class="window-frame">
+      <div class="window-pane">
+        <div style="position:absolute;bottom:4px;left:10%;right:10%;height:2px;background:rgba(255,255,255,0.1);border-radius:1px;"></div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:4px;background:rgba(255,255,255,0.05);"></div>
+      </div>
+      <div class="window-cross-h"></div>
+      <div class="window-cross-v"></div>
+    </div>
+    <div class="window-sill"></div>
+    <div class="curtain curtain-l"></div>
+    <div class="curtain curtain-r"></div>
+  </div>
+
+  <!-- Bookshelf -->
+  <div class="bookshelf" id="bookshelf" title="Past projects">
+    <div class="bookshelf-top"></div>
+    <div class="bookshelf-body">
+      <div class="bookshelf-shelf" style="top:50px"></div>
+      <div class="bookshelf-shelf" style="top:100px"></div>
+      <div class="bookshelf-shelf" style="top:150px"></div>
+      <!-- Shelf 1 books -->
+      <div class="book book-1" style="bottom:2px;height:44px;left:8px;background:#e74c3c"></div>
+      <div class="book book-2" style="bottom:2px;height:36px;left:20px;background:#3498db"></div>
+      <div class="book book-3" style="bottom:2px;height:48px;left:32px;background:#2ecc71"></div>
+      <div class="book book-4" style="bottom:2px;height:30px;left:44px;background:#f39c12"></div>
+      <div class="book book-5" style="bottom:2px;height:42px;left:56px;background:#9b59b6"></div>
+      <div class="book book-6" style="bottom:2px;height:38px;left:68px;background:#1abc9c"></div>
+      <div class="book book-7" style="bottom:2px;height:46px;left:80px;background:#e67e22"></div>
+      <div class="book book-8" style="bottom:2px;height:32px;left:92px;background:#e91e63"></div>
+      <div class="book book-9" style="bottom:2px;height:40px;left:104px;background:#00bcd4"></div>
+      <!-- Shelf 2 -->
+      <div class="book-s2 book-s2-1"></div>
+      <div class="book-s2 book-s2-2"></div>
+      <div class="book-s2 book-s2-3"></div>
+      <div class="book-s2 book-s2-4"></div>
+      <div class="book-s2 book-s2-5"></div>
+      <div class="book-s2 book-s2-6"></div>
+      <!-- Shelf 3 -->
+      <div class="book-s3 book-s3-1"></div>
+      <div class="book-s3 book-s3-2"></div>
+      <div class="book-s3 book-s3-3"></div>
+      <div class="book-s3 book-s3-4"></div>
+    </div>
+  </div>
+
+  <!-- Desk -->
+  <div class="desk" id="desk" title="Current project">
+    <div class="desk-top"></div>
+    <div class="desk-leg-l"></div>
+    <div class="desk-leg-r"></div>
+    <div class="desk-leg-c"></div>
+    <div class="desk-monitor">
+      <div class="desk-monitor-screen"></div>
+      <div class="desk-monitor-stand"></div>
+      <div class="desk-monitor-base"></div>
+    </div>
+  </div>
+
+  <!-- Door -->
+  <div class="door" id="door" title="Go to another room">
+    <div class="door-arch"></div>
+    <div class="door-body">
+      <div class="door-panel-top"></div>
+      <div class="door-panel-bottom"></div>
+      <div class="door-knob"></div>
+    </div>
+    <div class="door-frame"></div>
+  </div>
+
+  <!-- Buddy -->
+  <div class="buddy" id="buddy" title="Chat with Buddy!">
+    <div class="buddy-head">
+      <div class="buddy-eye buddy-eye-l"></div>
+      <div class="buddy-eye buddy-eye-r"></div>
+      <div class="buddy-mouth"></div>
+    </div>
+    <div class="buddy-body">
+      <div class="buddy-arm buddy-arm-l"></div>
+      <div class="buddy-arm buddy-arm-r"></div>
+      <div class="buddy-torso">
+        <div style="position:absolute;top:6px;left:6px;right:6px;bottom:6px;background:rgba(255,255,255,0.08);border-radius:3px;"></div>
+      </div>
+    </div>
+    <div class="buddy-feet">
+      <div class="buddy-foot"></div>
+      <div class="buddy-foot"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Chat Panel -->
+<div class="chat-overlay" id="chatOverlay"></div>
+<div class="chat-panel" id="chatPanel">
+  <div class="chat-header">
+    <div class="chat-header-icon">B</div>
+    <h2>Buddy the Builder</h2>
+    <button class="chat-close" id="chatClose">✕</button>
+  </div>
+  <div class="chat-messages" id="chatMessages"></div>
+  <div class="chat-input-area">
+    <input class="chat-input" id="chatInput" placeholder="Type a message..." autocomplete="off">
+    <button class="chat-send" id="chatSend">Send</button>
+  </div>
+</div>
+
+<!-- Bookshelf Overlay -->
+<div class="overlay" id="bookshelfOverlay">
+  <div class="overlay-bg" data-close="bookshelf"></div>
+  <div class="overlay-content">
+    <h2>📚 Past Projects</h2>
+    <ul class="project-list">
+      <li><span class="project-icon">🐱</span> Cat Platformer</li>
+      <li><span class="project-icon">🚀</span> Space Adventure</li>
+      <li><span class="project-icon">💃</span> Dance Party</li>
+    </ul>
+    <button class="overlay-close" data-close="bookshelf">Close</button>
+  </div>
+</div>
+
+<!-- Desk Overlay -->
+<div class="overlay" id="deskOverlay">
+  <div class="overlay-bg" data-close="desk"></div>
+  <div class="overlay-content">
+    <h2>🪑 Current Project</h2>
+    <p style="margin-bottom:4px"><strong>Project:</strong> 🌴 Jungle Runner</p>
+    <p style="margin-bottom:4px"><strong>Status:</strong> ⏳ In Progress</p>
+    <p style="margin-bottom:16px"><strong>Last saved:</strong> 2 hours ago</p>
+    <p style="text-align:center;margin-bottom:0">
+      <button class="overlay-close" style="display:inline-block;background:rgba(107,201,255,0.15);border-color:rgba(107,201,255,0.3);color:#6bc9ff" data-action="continue">▶ Continue Building</button>
+    </p>
+    <button class="overlay-close" data-close="desk" style="margin-top:12px">Close</button>
+  </div>
+</div>
+
+<!-- Door / Room Selector Overlay -->
+<div class="overlay" id="doorOverlay">
+  <div class="overlay-bg" data-close="door"></div>
+  <div class="overlay-content">
+    <h2>🚪 Where to?</h2>
+    <div class="room-list">
+      <div class="room-item" data-room="Build Studio">
+        <span class="room-icon">🎨</span> Build Studio
+      </div>
+      <div class="room-item" data-room="Asset Lab">
+        <span class="room-icon">🧩</span> Asset Lab
+      </div>
+      <div class="room-item" data-room="Ship Deck">
+        <span class="room-icon">🚢</span> Ship Deck
+      </div>
+      <div class="room-item" data-room="Library">
+        <span class="room-icon">📖</span> Library
+      </div>
+    </div>
+    <button class="overlay-close" data-close="door" style="margin-top:12px">Cancel</button>
+  </div>
+</div>
+
+<!-- Travel Overlay -->
+<div class="travel-overlay" id="travelOverlay">
+  <div class="travel-bg"></div>
+  <div class="travel-content">
+    <div class="travel-spinner"></div>
+    <div class="travel-text">Traveling...</div>
+  </div>
+</div>
+
+<!-- Arrival Overlay -->
+<div class="arrival-overlay" id="arrivalOverlay">
+  <div class="arrival-bg"></div>
+  <div class="arrival-content">
+    <h2 id="arrivalTitle">🎨 Build Studio</h2>
+    <p id="arrivalMsg">is under construction</p>
+    <p style="font-size:12px;color:rgba(200,150,80,0.5);margin-bottom:20px">This room will be available in a future update.</p>
+    <button class="overlay-close" data-close="arrival">← Back to Hub</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  // ===== Generate voxel floor blocks =====
+  const floor = document.getElementById('floor');
+  const floorW = Math.ceil(820/20);
+  for(let i=0;i<floorW*5;i++){
+    const b=document.createElement('div');
+    b.className='floor-block';
+    floor.appendChild(b);
+  }
+
+  // ===== Buddy greetings =====
+  const greetings = [
+    "Hey! What should we build today?",
+    "Ready to make something awesome?",
+    "I've got a feeling about today...",
+    "The tools are warm. Let's create!"
+  ];
+
+  // ===== Chat responses =====
+  const responses = {
+    'platformer': "A platformer? Great choice! Head to the Build Studio.",
+    'cat': "Cat character with a jetpack? I love it.",
+    'forest': "Forest background, coming right up! Head to the Asset Lab.",
+    'ship': "Ready to share your world? The Ship Deck is waiting!",
+    'default': "That sounds awesome! Tell me more about your idea."
+  };
+
+  const chatMessages = document.getElementById('chatMessages');
+  const chatInput = document.getElementById('chatInput');
+  const chatSend = document.getElementById('chatSend');
+  const chatPanel = document.getElementById('chatPanel');
+  const chatOverlay = document.getElementById('chatOverlay');
+  const chatClose = document.getElementById('chatClose');
+
+  // ===== Buddy msg =====
+  function addBuddyMsg(text){
+    const d=document.createElement('div');
+    d.className='chat-message buddy';
+    d.textContent='🤖 '+text;
+    chatMessages.appendChild(d);
+    chatMessages.scrollTop=chatMessages.scrollHeight;
+  }
+
+  function addUserMsg(text){
+    const d=document.createElement('div');
+    d.className='chat-message user';
+    d.textContent=text;
+    chatMessages.appendChild(d);
+    chatMessages.scrollTop=chatMessages.scrollHeight;
+  }
+
+  function getResponse(input){
+    const l=input.toLowerCase();
+    for(const [key,val] of Object.entries(responses)){
+      if(l.includes(key)) return val;
+    }
+    return responses.default;
+  }
+
+  function handleSend(){
+    const t=chatInput.value.trim();
+    if(!t) return;
+    addUserMsg(t);
+    chatInput.value='';
+    chatSend.disabled=true;
+    setTimeout(function(){
+      addBuddyMsg(getResponse(t));
+      chatSend.disabled=false;
+    },600);
+  }
+
+  chatSend.addEventListener('click',handleSend);
+  chatInput.addEventListener('keydown',function(e){
+    if(e.key==='Enter') handleSend();
+  });
+
+  // ===== Open/close chat =====
+  function openChat(){
+    chatOverlay.classList.add('active');
+    chatPanel.classList.add('active');
+    chatInput.focus();
+  }
+
+  function closeChat(){
+    chatOverlay.classList.remove('active');
+    chatPanel.classList.remove('active');
+  }
+
+  document.getElementById('buddy').addEventListener('click',openChat);
+  chatClose.addEventListener('click',closeChat);
+  chatOverlay.addEventListener('click',closeChat);
+
+  // ===== Buddy greeting on load =====
+  window.addEventListener('load',function(){
+    setTimeout(function(){
+      if(chatMessages.children.length===0){
+        addBuddyMsg(greetings[Math.floor(Math.random()*greetings.length)]);
+      }
+    },800);
+  });
+
+  // ===== Window - cycle themes =====
+  const win=document.getElementById('window');
+  const themes=['sunset','night','forest','ocean','aurora'];
+  let themeIdx=0;
+  win.addEventListener('click',function(){
+    win.classList.remove('window-theme-sunset','window-theme-night','window-theme-forest','window-theme-ocean','window-theme-aurora');
+    themeIdx=(themeIdx+1)%themes.length;
+    win.classList.add('window-theme-'+themes[themeIdx]);
+  });
+
+  // ===== Bookshelf overlay =====
+  document.getElementById('bookshelf').addEventListener('click',function(){
+    document.getElementById('bookshelfOverlay').classList.add('active');
+  });
+
+  // ===== Desk overlay =====
+  document.getElementById('desk').addEventListener('click',function(){
+    document.getElementById('deskOverlay').classList.add('active');
+  });
+
+  // ===== Door overlay =====
+  document.getElementById('door').addEventListener('click',function(){
+    document.getElementById('doorOverlay').classList.add('active');
+  });
+
+  // ===== Room selection =====
+  document.querySelectorAll('.room-item').forEach(function(el){
+    el.addEventListener('click',function(){
+      document.getElementById('doorOverlay').classList.remove('active');
+      const room=this.getAttribute('data-room');
+      travel(room);
+    });
+  });
+
+  // ===== Travel animation =====
+  function travel(room){
+    const travelOv=document.getElementById('travelOverlay');
+    travelOv.classList.add('active');
+    setTimeout(function(){
+      travelOv.classList.remove('active');
+      const arrOv=document.getElementById('arrivalOverlay');
+      document.getElementById('arrivalTitle').textContent='🎨 '+room;
+      arrOv.classList.add('active');
+    },1200);
+  }
+
+  // ===== Fireplace click =====
+  const fp=document.getElementById('fireplace');
+  let fpToggle=false;
+  fp.addEventListener('click',function(){
+    fpToggle=!fpToggle;
+    const particles=fp.querySelectorAll('.fire-particle');
+    particles.forEach(function(p){
+      p.style.animationPlayState=fpToggle?'paused':'running';
+    });
+    const glow=fp.querySelector('.fire-glow');
+    if(glow){
+      glow.style.animationPlayState=fpToggle?'paused':'running';
+    }
+  });
+
+  // ===== Close overlays (data-close) =====
+  document.addEventListener('click',function(e){
+    const el=e.target.closest('[data-close]');
+    if(el){
+      const target=el.getAttribute('data-close');
+      if(target==='arrival'){
+        document.getElementById('arrivalOverlay').classList.remove('active');
+        return;
+      }
+      if(target==='bookshelf'){
+        document.getElementById('bookshelfOverlay').classList.remove('active');
+      }else if(target==='desk'){
+        document.getElementById('deskOverlay').classList.remove('active');
+      }else if(target==='door'){
+        document.getElementById('doorOverlay').classList.remove('active');
+      }
+    }
+  });
+
+  // ===== Continue Building =====
+  document.querySelector('[data-action="continue"]').addEventListener('click',function(){
+    document.getElementById('deskOverlay').classList.remove('active');
+    travel('Build Studio');
+  });
+
+  // ===== Window initial theme =====
+  win.classList.add('window-theme-sunset');
+
+})();
+</script>
+</body>
+</html>

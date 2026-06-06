@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>VoxelWorks - Platformer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #1a1a2e;
+      font-family: 'Courier New', monospace;
+    }
+    #game-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    canvas { display: block; }
+    /* Touch controls shown/hidden by Phaser */
+    #touch-controls {
+      display: none;
+      position: fixed;
+      bottom: 20px;
+      left: 0;
+      right: 0;
+      height: 120px;
+      pointer-events: none;
+      z-index: 10;
+    }
+    #touch-controls.active {
+      display: flex;
+      justify-content: space-between;
+      padding: 0 20px;
+    }
+    .touch-btn {
+      pointer-events: auto;
+      width: 70px;
+      height: 70px;
+      border: 3px solid rgba(255,255,255,0.6);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.15);
+      color: white;
+      font-size: 28px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    .touch-btn:active, .touch-btn.pressed {
+      background: rgba(255,255,255,0.35);
+      border-color: rgba(255,200,50,0.9);
+    }
+    .touch-left-group {
+      display: flex;
+      gap: 10px;
+    }
+    .touch-right-group {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+    }
+    #touch-jump {
+      width: 90px;
+      height: 90px;
+      font-size: 32px;
+      border-color: rgba(100,200,255,0.6);
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container"></div>
+  <div id="touch-controls">
+    <div class="touch-left-group">
+      <div class="touch-btn" id="touch-left">◀</div>
+      <div class="touch-btn" id="touch-right">▶</div>
+    </div>
+    <div class="touch-right-group">
+      <div class="touch-btn" id="touch-jump">▲</div>
+    </div>
+  </div>
+
+  <!-- Load Phaser from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+
+  <!-- Game modules -->
+  <script type="module" src="game.js"></script>
+</body>
+</html>

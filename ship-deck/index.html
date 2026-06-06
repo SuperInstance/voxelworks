@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🚀 Ship Deck</title>
+<style>
+/* ── Reset & Base ────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0e1a;
+  --panel: #111827;
+  --panel-border: #1e293b;
+  --glow-blue: #38bdf8;
+  --glow-green: #4ade80;
+  --glow-purple: #c084fc;
+  --glow-gold: #fbbf24;
+  --glow-cyan: #22d3ee;
+  --text: #e2e8f0;
+  --text-dim: #64748b;
+  --text-bright: #f8fafc;
+  --line-color: #1e293b;
+}
+
+html { font-size: 16px; }
+
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  padding: 0 1rem;
+  overflow-x: hidden;
+}
+
+/* ── Scanline overlay ────────────────────────── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255,255,255,0.015) 2px,
+    rgba(255,255,255,0.015) 4px
+  );
+  z-index: 999;
+}
+
+/* ── Container ───────────────────────────────── */
+.container {
+  max-width: 640px;
+  width: 100%;
+  padding: 1.5rem 1rem 3rem;
+  position: relative;
+}
+
+/* ── Header ─────────────────────────────────── */
+header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+  padding-top: 1rem;
+}
+
+header h1 {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--text-bright);
+  letter-spacing: 0.05em;
+  text-shadow: 0 0 30px rgba(56,189,248,0.3);
+  animation: headerPulse 3s ease-in-out infinite;
+}
+
+@keyframes headerPulse {
+  0%, 100% { text-shadow: 0 0 20px rgba(56,189,248,0.2); }
+  50%      { text-shadow: 0 0 40px rgba(56,189,248,0.5); }
+}
+
+header .subtitle {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  margin-top: 0.3rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+/* ── Project name bar ───────────────────────── */
+.project-bar {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 0.75rem 1.25rem;
+  margin-bottom: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  box-shadow: 0 0 20px rgba(56,189,248,0.06);
+}
+
+.project-bar .icon {
+  font-size: 1.5rem;
+}
+
+.project-bar .name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-bright);
+  flex: 1;
+}
+
+.project-bar .status-badge {
+  font-size: 0.75rem;
+  background: rgba(74,222,128,0.12);
+  color: var(--glow-green);
+  border: 1px solid rgba(74,222,128,0.25);
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+/* ── Timeline ───────────────────────────────── */
+.timeline {
+  position: relative;
+  padding-left: 2.5rem;
+}
+
+/* vertical line */
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 1.1rem;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(to bottom, var(--line-color), rgba(30,41,59,0.3));
+  border-radius: 2px;
+}
+
+/* ── Timeline node ──────────────────────────── */
+.node {
+  position: relative;
+  padding-bottom: 1.5rem;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeSlideIn 0.5s ease forwards;
+}
+
+.node:nth-child(1) { animation-delay: 0.1s; }
+.node:nth-child(2) { animation-delay: 0.2s; }
+.node:nth-child(3) { animation-delay: 0.3s; }
+.node:nth-child(4) { animation-delay: 0.4s; }
+.node:nth-child(5) { animation-delay: 0.5s; }
+
+@keyframes fadeSlideIn {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* dot */
+.node .dot {
+  position: absolute;
+  left: -2.5rem;
+  top: 0.3rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  border: 3px solid var(--panel);
+  z-index: 2;
+  transition: box-shadow 0.3s;
+}
+
+.node .dot.type-feat    { background: var(--glow-green);  box-shadow: 0 0 10px rgba(74,222,128,0.5); }
+.node .dot.type-fix     { background: var(--glow-blue);   box-shadow: 0 0 10px rgba(56,189,248,0.5); }
+.node .dot.type-asset   { background: var(--glow-purple); box-shadow: 0 0 10px rgba(192,132,252,0.5); }
+.node .dot.type-deploy  { background: var(--glow-gold);   box-shadow: 0 0 10px rgba(251,191,36,0.5); }
+.node .dot.type-init    { background: var(--glow-cyan);   box-shadow: 0 0 10px rgba(34,211,238,0.5); }
+
+.node:hover .dot {
+  transform: scale(1.25);
+}
+
+/* card */
+.node .card {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  transition: border-color 0.25s, box-shadow 0.25s, transform 0.2s;
+  cursor: default;
+}
+
+.node .card:hover {
+  border-color: rgba(56,189,248,0.2);
+  box-shadow: 0 0 20px rgba(56,189,248,0.06);
+  transform: translateX(3px);
+}
+
+.node .card .msg {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-bright);
+  line-height: 1.4;
+}
+
+.node .card .meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.node .card .meta .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.tag.tag-live     { background: rgba(74,222,128,0.12); color: var(--glow-green);  border: 1px solid rgba(74,222,128,0.2); }
+.tag.tag-building { background: rgba(251,191,36,0.12); color: var(--glow-gold);   border: 1px solid rgba(251,191,36,0.2); }
+.tag.tag-local    { background: rgba(100,116,139,0.15); color: var(--text-dim);    border: 1px solid rgba(100,116,139,0.2); }
+
+/* ── Ship It ────────────────────────────────── */
+.ship-section {
+  text-align: center;
+  margin-top: 2rem;
+}
+
+.ship-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #fff;
+  border: none;
+  padding: 1rem 2.5rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  border-radius: 16px;
+  cursor: pointer;
+  box-shadow: 0 0 30px rgba(34,197,94,0.35);
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.ship-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 10%, rgba(255,255,255,0.15), transparent 70%);
+  pointer-events: none;
+}
+
+.ship-btn:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 0 50px rgba(34,197,94,0.5);
+}
+
+.ship-btn:active {
+  transform: scale(0.97);
+}
+
+.ship-btn .rocket {
+  display: inline-block;
+  transition: transform 0.3s;
+}
+
+.ship-btn:hover .rocket {
+  transform: translateY(-3px) rotate(-10deg);
+}
+
+.ship-hint {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-top: 0.75rem;
+}
+
+/* ── Modal ──────────────────────────────────── */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(6px);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+  animation: fadeIn 0.3s ease;
+}
+
+.modal-overlay.open { display: flex; }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.modal-box {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 20px;
+  padding: 2rem 1.75rem;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  animation: modalBounce 0.35s ease;
+  position: relative;
+}
+
+@keyframes modalBounce {
+  0%   { transform: scale(0.85); opacity: 0; }
+  70%  { transform: scale(1.02); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.modal-box h2 {
+  font-size: 1.5rem;
+  color: var(--text-bright);
+  margin-bottom: 0.25rem;
+}
+
+.modal-box p {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  margin-bottom: 1.25rem;
+}
+
+/* QR placeholder */
+.qr-placeholder {
+  width: 140px;
+  height: 140px;
+  margin: 0 auto 1.25rem;
+  background: #fff;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.qr-placeholder .qr-inner {
+  width: 120px;
+  height: 120px;
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  grid-template-rows: repeat(9, 1fr);
+  gap: 2px;
+}
+
+.qr-placeholder .qr-inner span {
+  background: #111;
+  border-radius: 1px;
+}
+
+.qr-placeholder .qr-inner span.on  { background: #111; }
+.qr-placeholder .qr-inner span.off { background: #fff; }
+
+.qr-placeholder .qr-label {
+  position: absolute;
+  bottom: 8px;
+  font-size: 0.6rem;
+  color: #666;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  background: rgba(255,255,255,0.85);
+  padding: 1px 8px;
+  border-radius: 4px;
+}
+
+.url-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 0.65rem 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.url-display .url-text {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--glow-cyan);
+  text-align: left;
+  word-break: break-all;
+}
+
+.url-display .copy-btn {
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  color: var(--text-dim);
+  font-size: 1.25rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  flex-shrink: 0;
+}
+
+.url-display .copy-btn:hover {
+  background: rgba(56,189,248,0.1);
+  color: var(--glow-blue);
+}
+
+.url-display .copy-btn.copied {
+  color: var(--glow-green);
+  border-color: rgba(74,222,128,0.3);
+}
+
+.modal-close {
+  margin-top: 0.5rem;
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  color: var(--text-dim);
+  padding: 0.6rem 2rem;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.2s, color 0.2s;
+}
+
+.modal-close:hover {
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+}
+
+.modal-close:active {
+  transform: scale(0.96);
+}
+
+/* ── Toast ──────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: rgba(74,222,128,0.15);
+  color: var(--glow-green);
+  border: 1px solid rgba(74,222,128,0.25);
+  padding: 0.65rem 1.25rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s;
+  z-index: 2000;
+  backdrop-filter: blur(8px);
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── Responsive ────────────────────────────── */
+@media (max-width: 480px) {
+  .container { padding: 1rem 0.5rem 2rem; }
+  header h1 { font-size: 1.7rem; }
+  .timeline { padding-left: 2rem; }
+  .timeline::before { left: 0.85rem; }
+  .node .dot { left: -2rem; width: 1.1rem; height: 1.1rem; }
+  .node .card { padding: 0.7rem 0.85rem; }
+  .node .card .msg { font-size: 0.9rem; }
+  .ship-btn { padding: 0.85rem 1.75rem; font-size: 1.1rem; }
+  .modal-box { padding: 1.5rem 1rem; }
+  .modal-box h2 { font-size: 1.3rem; }
+}
+
+/* ── Glow orbs (decorative) ─────────────────── */
+.glow-orb {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(80px);
+  opacity: 0.12;
+  z-index: 0;
+}
+
+.glow-orb.orb-1 {
+  width: 350px; height: 350px;
+  background: var(--glow-blue);
+  top: -80px; right: -100px;
+}
+
+.glow-orb.orb-2 {
+  width: 300px; height: 300px;
+  background: var(--glow-green);
+  bottom: 120px; left: -120px;
+}
+
+.glow-orb.orb-3 {
+  width: 200px; height: 200px;
+  background: var(--glow-purple);
+  bottom: -50px; right: -50px;
+}
+</style>
+</head>
+<body>
+
+<!-- Decorative glow orbs -->
+<div class="glow-orb orb-1"></div>
+<div class="glow-orb orb-2"></div>
+<div class="glow-orb orb-3"></div>
+
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <h1>🚀 Ship Deck</h1>
+    <p class="subtitle">Mission Control</p>
+  </header>
+
+  <!-- Project Bar -->
+  <div class="project-bar">
+    <span class="icon">🎮</span>
+    <span class="name" id="projectName">My Platformer</span>
+    <span class="status-badge">● LIVE</span>
+  </div>
+
+  <!-- Git Timeline -->
+  <div class="timeline" id="timeline"></div>
+
+  <!-- Ship Section -->
+  <div class="ship-section">
+    <button class="ship-btn" id="shipBtn">
+      <span class="rocket">🌍</span> Share My World!
+    </button>
+    <p class="ship-hint">Share your creation with friends &amp; family</p>
+  </div>
+
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal-box">
+    <h2>🎉 Your World is Live!</h2>
+    <p>Share this link with anyone to play your game</p>
+
+    <!-- QR code placeholder -->
+    <div class="qr-placeholder" id="qrPlaceholder"></div>
+
+    <div class="url-display">
+      <span class="url-text" id="urlText">https://my-platformer.pages.dev</span>
+      <button class="copy-btn" id="copyBtn" title="Copy to clipboard">📋</button>
+    </div>
+
+    <button class="modal-close" id="closeModal">Close</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">✓ Copied to clipboard!</div>
+
+<script>
+// ── Data ────────────────────────────────────
+const projectName = 'My Platformer';
+
+const commits = [
+  {
+    type: 'feat',
+    msg: 'Added jumping!',
+    time: '2 minutes ago',
+    tag: 'live',
+    tagIcon: '✅',
+    tagLabel: 'Live'
+  },
+  {
+    type: 'feat',
+    msg: 'Made a cat character',
+    time: '5 minutes ago',
+    tag: 'building',
+    tagIcon: '🏗️',
+    tagLabel: 'Building'
+  },
+  {
+    type: 'fix',
+    msg: 'Fixed coin collecting',
+    time: '8 minutes ago',
+    tag: null
+  },
+  {
+    type: 'feat',
+    msg: 'Built a forest level',
+    time: '15 minutes ago',
+    tag: null
+  },
+  {
+    type: 'init',
+    msg: 'Started a platformer!',
+    time: '30 minutes ago',
+    tag: 'local',
+    tagIcon: '📦',
+    tagLabel: 'Local'
+  }
+];
+
+// ── Render timeline ─────────────────────────
+function renderTimeline() {
+  const container = document.getElementById('timeline');
+  container.innerHTML = '';
+
+  commits.forEach(c => {
+    const node = document.createElement('div');
+    node.className = 'node';
+
+    // dot
+    const dot = document.createElement('div');
+    dot.className = `dot type-${c.type}`;
+    node.appendChild(dot);
+
+    // card
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    const msg = document.createElement('div');
+    msg.className = 'msg';
+    msg.textContent = c.msg;
+    card.appendChild(msg);
+
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+
+    const timeSpan = document.createElement('span');
+    timeSpan.textContent = c.time;
+    meta.appendChild(timeSpan);
+
+    if (c.tag) {
+      const tag = document.createElement('span');
+      tag.className = `tag tag-${c.tag}`;
+      tag.textContent = `${c.tagIcon} ${c.tagLabel}`;
+      meta.appendChild(tag);
+    }
+
+    card.appendChild(meta);
+    node.appendChild(card);
+    container.appendChild(node);
+  });
+}
+
+// ── QR code generation (simple pattern) ─────
+function generateQR(parent, url) {
+  // Deterministic pseudo-random from the URL
+  let hash = 0;
+  for (let i = 0; i < url.length; i++) {
+    hash = ((hash << 5) - hash) + url.charCodeAt(i);
+    hash |= 0;
+  }
+
+  // Generate a 9×9 grid that looks QR-ish
+  const cells = [];
+  // Hard-coded finder patterns (top-left, top-right, bottom-left)
+  const finderPattern = [
+    [0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[0,6],
+    [1,0],[1,6],[2,0],[2,6],[3,0],[3,6],
+    [4,0],[4,1],[4,2],[4,3],[4,4],[4,5],[4,6],
+    [5,0],[5,6],[6,0],[6,1],[6,2],[6,3],[6,4],[6,5],[6,6]
+  ];
+  const finderSet = new Set(finderPattern.map(p => `${p[0]},${p[1]}`));
+
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      const key = `${r},${c}`;
+      if (finderSet.has(key)) {
+        cells.push('on');
+      } else if (r === 8 && c === 8) {
+        cells.push('off'); // bottom-right blank
+      } else {
+        // Deterministic from hash
+        const bit = ((hash >> ((r * 9 + c) % 31)) & 1) || ((r + c) % 3 === 0 ? 1 : 0);
+        cells.push(bit ? 'on' : 'off');
+      }
+    }
+  }
+
+  parent.innerHTML = '';
+  const inner = document.createElement('div');
+  inner.className = 'qr-inner';
+  cells.forEach(cls => {
+    const span = document.createElement('span');
+    span.className = cls;
+    inner.appendChild(span);
+  });
+  parent.appendChild(inner);
+
+  const label = document.createElement('div');
+  label.className = 'qr-label';
+  label.textContent = 'QR CODE';
+  parent.appendChild(label);
+}
+
+// ── Ship URL ─────────────────────────────────
+function getShipUrl() {
+  const slug = projectName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return `https://${slug}.pages.dev`;
+}
+
+// ── Modal ───────────────────────────────────
+let modalOpen = false;
+
+function openModal() {
+  modalOpen = true;
+  const modal = document.getElementById('modal');
+  const urlText = document.getElementById('urlText');
+  const url = getShipUrl();
+  urlText.textContent = url;
+  document.getElementById('projectName').textContent = projectName;
+  generateQR(document.getElementById('qrPlaceholder'), url);
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  modalOpen = false;
+  document.getElementById('modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// ── Copy ────────────────────────────────────
+function copyUrl() {
+  const url = getShipUrl();
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.classList.add('copied');
+    showToast('✓ Copied to clipboard!');
+    setTimeout(() => btn.classList.remove('copied'), 2000);
+  }).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = url;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('✓ Copied to clipboard!');
+  });
+}
+
+// ── Toast ───────────────────────────────────
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toast._hide);
+  toast._hide = setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+// ── Events ──────────────────────────────────
+document.getElementById('shipBtn').addEventListener('click', openModal);
+document.getElementById('closeModal').addEventListener('click', closeModal);
+document.getElementById('copyBtn').addEventListener('click', copyUrl);
+
+document.getElementById('modal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && modalOpen) closeModal();
+});
+
+// ── Init ────────────────────────────────────
+document.getElementById('projectName').textContent = projectName;
+renderTimeline();
+</script>
+</body>
+</html>

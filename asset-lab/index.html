@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asset Lab · VoxelWorks</title>
+<style>
+  /* ── Reset & Base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 16px; scroll-behavior: smooth; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #0f0a1a;
+    color: #e2d8f0;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── App Container ── */
+  .app { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
+
+  /* ── Header ── */
+  .header {
+    text-align: center;
+    padding: 40px 0 24px;
+    position: relative;
+  }
+  .header h1 {
+    font-size: 2.6rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #a855f7, #ec4899, #a855f7);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: gradient-shift 4s ease infinite;
+    letter-spacing: -0.02em;
+  }
+  @keyframes gradient-shift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  .header p {
+    color: #8b7aa8;
+    margin-top: 6px;
+    font-size: 1.05rem;
+  }
+  .header .sparkle {
+    display: inline-block;
+    animation: sparkle-pulse 2s ease-in-out infinite;
+  }
+  @keyframes sparkle-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(1.2); }
+  }
+
+  /* ── Generator ── */
+  .generator {
+    background: rgba(168, 85, 247, 0.06);
+    border: 1px solid rgba(168, 85, 247, 0.15);
+    border-radius: 20px;
+    padding: 24px;
+    margin-bottom: 32px;
+    position: relative;
+    backdrop-filter: blur(4px);
+  }
+  .generator::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, rgba(168,85,247,0.2), transparent, rgba(236,72,153,0.15));
+    z-index: -1;
+  }
+  .input-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .input-row input {
+    flex: 1;
+    min-width: 200px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(168,85,247,0.25);
+    border-radius: 12px;
+    padding: 14px 18px;
+    font-size: 1rem;
+    color: #e2d8f0;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .input-row input::placeholder { color: #5f4d7a; }
+  .input-row input:focus {
+    border-color: #a855f7;
+    box-shadow: 0 0 0 3px rgba(168,85,247,0.15);
+  }
+  .input-row button.generate-btn {
+    background: linear-gradient(135deg, #a855f7, #d946ef);
+    border: none;
+    border-radius: 12px;
+    padding: 14px 28px;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: transform 0.15s, box-shadow 0.15s;
+    white-space: nowrap;
+  }
+  .input-row button.generate-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(168,85,247,0.35);
+  }
+  .input-row button.generate-btn:active { transform: translateY(0); }
+  .input-row button.generate-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  /* Loader span inside button */
+  .generate-btn .loader {
+    display: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255,255,255,0.2);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  .generate-btn.generating .loader { display: inline-block; }
+  .generate-btn.generating .btn-text { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Autocomplete Suggestions ── */
+  .autocomplete-wrap { position: relative; flex: 1; min-width: 200px; }
+  .autocomplete-list {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: #1a1230;
+    border: 1px solid rgba(168,85,247,0.25);
+    border-radius: 12px;
+    overflow: hidden;
+    z-index: 100;
+    display: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  .autocomplete-list.active { display: block; }
+  .autocomplete-item {
+    padding: 10px 16px;
+    cursor: pointer;
+    color: #b8a8d8;
+    font-size: 0.92rem;
+    transition: background 0.1s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .autocomplete-item:hover,
+  .autocomplete-item.highlighted { background: rgba(168,85,247,0.15); }
+  .autocomplete-item .type-badge {
+    font-size: 0.7rem;
+    background: rgba(168,85,247,0.2);
+    padding: 2px 8px;
+    border-radius: 10px;
+    color: #a855f7;
+    flex-shrink: 0;
+  }
+
+  /* ── Type Selector ── */
+  .type-selector {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+  .type-btn {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(168,85,247,0.15);
+    border-radius: 100px;
+    padding: 8px 18px;
+    font-size: 0.85rem;
+    color: #b8a8d8;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 600;
+  }
+  .type-btn:hover { background: rgba(168,85,247,0.12); border-color: rgba(168,85,247,0.3); }
+  .type-btn.active {
+    background: rgba(168,85,247,0.2);
+    border-color: #a855f7;
+    color: #d8c8ff;
+    box-shadow: 0 0 12px rgba(168,85,247,0.15);
+  }
+
+  /* ── Typing Indicator ── */
+  .typing-indicator {
+    margin-top: 12px;
+    font-size: 0.82rem;
+    color: #6b5a88;
+    min-height: 1.2em;
+    transition: opacity 0.3s;
+  }
+  .typing-indicator .dots::after {
+    content: '';
+    animation: dots 1.4s steps(4, end) infinite;
+  }
+  @keyframes dots {
+    0%   { content: ''; }
+    25%  { content: '.'; }
+    50%  { content: '..'; }
+    75%  { content: '...'; }
+    100% { content: ''; }
+  }
+
+  /* ── Asset Grid ── */
+  .asset-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+  }
+  .asset-grid .empty-state {
+    width: 100%;
+    text-align: center;
+    padding: 60px 20px;
+    color: #5f4d7a;
+  }
+  .asset-grid .empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
+  .asset-grid .empty-state p { font-size: 1.05rem; }
+
+  /* ── Asset Card ── */
+  .asset-card {
+    width: 280px;
+    background: rgba(26, 18, 48, 0.8);
+    border: 1px solid rgba(168,85,247,0.12);
+    border-radius: 16px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.25s cubic-bezier(.34,1.56,.64,1),
+                box-shadow 0.25s ease,
+                border-color 0.2s;
+    position: relative;
+    animation: card-enter 0.4s cubic-bezier(.34,1.56,.64,1) both;
+    flex-shrink: 0;
+  }
+  @keyframes card-enter {
+    from { opacity: 0; transform: translateY(30px) scale(0.95); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .asset-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 16px 48px rgba(168,85,247,0.2);
+    border-color: rgba(168,85,247,0.3);
+  }
+  .asset-card:nth-child(2) { animation-delay: 0.05s; }
+  .asset-card:nth-child(3) { animation-delay: 0.1s; }
+  .asset-card:nth-child(4) { animation-delay: 0.15s; }
+  .asset-card:nth-child(5) { animation-delay: 0.2s; }
+  .asset-card:nth-child(6) { animation-delay: 0.25s; }
+
+  .asset-card .preview {
+    width: 100%;
+    height: 180px;
+    position: relative;
+    overflow: hidden;
+  }
+  .asset-card .preview canvas { width: 100%; height: 100%; display: block; }
+  .asset-card .preview .waveform-placeholder,
+  .asset-card .preview .music-placeholder,
+  .asset-card .preview .story-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .asset-card .card-body {
+    padding: 14px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .asset-card .card-body .info { flex: 1; min-width: 0; }
+  .asset-card .card-body .title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #d8c8ff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .asset-card .card-body .subtitle {
+    font-size: 0.78rem;
+    color: #6b5a88;
+    margin-top: 2px;
+  }
+  .asset-card .card-body .type-tag {
+    display: inline-block;
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    border-radius: 8px;
+    margin-top: 4px;
+    font-weight: 600;
+  }
+  .type-tag.sprite { background: rgba(74,222,128,0.15); color: #4ade80; }
+  .type-tag.background { background: rgba(96,165,250,0.15); color: #60a5fa; }
+  .type-tag.sound { background: rgba(250,204,21,0.15); color: #facc15; }
+  .type-tag.music { background: rgba(232,121,249,0.15); color: #e879f9; }
+  .type-tag.story { background: rgba(251,146,60,0.15); color: #fb923c; }
+
+  .asset-card .actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .asset-card .actions button {
+    background: none;
+    border: none;
+    padding: 6px;
+    cursor: pointer;
+    font-size: 1.15rem;
+    border-radius: 8px;
+    transition: background 0.15s, transform 0.15s;
+    color: #5f4d7a;
+    line-height: 1;
+  }
+  .asset-card .actions button:hover { background: rgba(168,85,247,0.1); transform: scale(1.15); }
+  .asset-card .actions .heart-btn.liked { color: #ec4899; }
+  .asset-card .actions .download-btn:hover { color: #a855f7; }
+
+  /* ── Lightbox ── */
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(6, 3, 15, 0.92);
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    backdrop-filter: blur(8px);
+    animation: lb-fade 0.2s ease;
+  }
+  .lightbox.active { display: flex; }
+  @keyframes lb-fade { from { opacity: 0; } to { opacity: 1; } }
+  .lightbox .lb-content {
+    max-width: 640px;
+    width: 100%;
+    background: #1a1230;
+    border: 1px solid rgba(168,85,247,0.2);
+    border-radius: 20px;
+    overflow: hidden;
+    position: relative;
+    animation: lb-scale 0.25s cubic-bezier(.34,1.56,.64,1);
+  }
+  @keyframes lb-scale { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+  .lightbox .lb-preview {
+    width: 100%;
+    height: 320px;
+    position: relative;
+  }
+  .lightbox .lb-preview canvas { width: 100%; height: 100%; display: block; }
+  .lightbox .lb-info {
+    padding: 20px 24px;
+  }
+  .lightbox .lb-info h2 { font-size: 1.3rem; color: #e2d8f0; }
+  .lightbox .lb-info .lb-meta { color: #8b7aa8; font-size: 0.88rem; margin-top: 4px; }
+  .lightbox .lb-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: rgba(0,0,0,0.5);
+    border: none;
+    color: #fff;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: background 0.15s;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .lightbox .lb-close:hover { background: rgba(168,85,247,0.5); }
+
+  /* ── Section Title ── */
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 24px 0 16px;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #c8b8e8;
+  }
+  .section-title .line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(168,85,247,0.3), transparent);
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 640px) {
+    .header h1 { font-size: 1.8rem; }
+    .asset-card { width: 100%; max-width: 340px; }
+    .input-row { flex-direction: column; }
+    .input-row button.generate-btn { width: 100%; justify-content: center; }
+    .type-selector { justify-content: center; }
+    .lightbox .lb-preview { height: 200px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <header class="header">
+    <h1>⚡ Asset Lab</h1>
+    <p><span class="sparkle">✨</span> Describe what you want — we'll bring it to life <span class="sparkle">✨</span></p>
+  </header>
+
+  <!-- Generator -->
+  <div class="generator">
+    <div class="input-row">
+      <div class="autocomplete-wrap">
+        <input type="text" id="promptInput" placeholder="Describe what you want to make..." autocomplete="off" spellcheck="false">
+        <div class="autocomplete-list" id="autocompleteList"></div>
+      </div>
+      <button class="generate-btn" id="generateBtn">
+        <span class="loader"></span>
+        <span class="btn-text">✨ Generate</span>
+      </button>
+    </div>
+    <div class="type-selector">
+      <button class="type-btn active" data-type="sprite">🎮 Sprite</button>
+      <button class="type-btn" data-type="background">🏞️ Background</button>
+      <button class="type-btn" data-type="sound">🔊 Sound</button>
+      <button class="type-btn" data-type="music">🎵 Music</button>
+      <button class="type-btn" data-type="story">📜 Story</button>
+    </div>
+    <div class="typing-indicator" id="typingIndicator"></div>
+  </div>
+
+  <!-- Gallery -->
+  <div class="section-title">
+    <span>🖼️ Your Assets</span>
+    <span class="line"></span>
+  </div>
+  <div class="asset-grid" id="assetGrid"></div>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox">
+  <div class="lb-content">
+    <button class="lb-close" id="lbClose">✕</button>
+    <div class="lb-preview" id="lbPreview"></div>
+    <div class="lb-info">
+      <h2 id="lbTitle"></h2>
+      <div class="lb-meta" id="lbMeta"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ── Asset Sample Data ──
+  const SAMPLES = [
+    { id: 's1', prompt: 'Orange tabby cat', type: 'sprite', title: 'Orange Tabby Cat', subtitle: 'A cute orange cat with stripes', liked: false },
+    { id: 's2', prompt: 'Forest with sunlight', type: 'background', title: 'Sunlit Forest', subtitle: 'Golden rays through the canopy', liked: false },
+    { id: 's3', prompt: 'Coin collect sound', type: 'sound', title: 'Coin Collect', subtitle: 'Short bright chime', liked: false },
+    { id: 's4', prompt: 'Boss battle music', type: 'music', title: 'Boss Battle Theme', subtitle: 'Epic dramatic orchestral', liked: false },
+    { id: 's5', prompt: 'The legend of the crystal', type: 'story', title: 'The Legend of the Crystal', subtitle: 'A fantasy tale', liked: false },
+    { id: 's6', prompt: 'Green slime enemy', type: 'sprite', title: 'Green Slime', subtitle: 'Bouncy green slime monster', liked: false },
+  ];
+
+  // Suggestions for autocomplete
+  const SUGGESTIONS = [
+    { text: 'Orange tabby cat', type: 'sprite' },
+    { text: 'Forest with sunlight', type: 'background' },
+    { text: 'Coin collect sound', type: 'sound' },
+    { text: 'Boss battle music', type: 'music' },
+    { text: 'The legend of the crystal', type: 'story' },
+    { text: 'Green slime enemy', type: 'sprite' },
+    { text: 'Blue wizard hat', type: 'sprite' },
+    { text: 'Underwater cave', type: 'background' },
+    { text: 'Jump sound effect', type: 'sound' },
+    { text: 'Peaceful village theme', type: 'music' },
+    { text: 'The hidden temple', type: 'story' },
+    { text: 'Robot companion', type: 'sprite' },
+  ];
+
+  let assets = [...SAMPLES];
+  let highlightedIdx = -1;
+  let selectedType = 'sprite';
+
+  // ── DOM refs ──
+  const grid = document.getElementById('assetGrid');
+  const promptInput = document.getElementById('promptInput');
+  const autoList = document.getElementById('autocompleteList');
+  const generateBtn = document.getElementById('generateBtn');
+  const typingIndicator = document.getElementById('typingIndicator');
+  const lightbox = document.getElementById('lightbox');
+  const lbPreview = document.getElementById('lbPreview');
+  const lbTitle = document.getElementById('lbTitle');
+  const lbMeta = document.getElementById('lbMeta');
+  const lbClose = document.getElementById('lbClose');
+
+  // ── Type selector ──
+  document.querySelectorAll('.type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedType = btn.dataset.type;
+    });
+  });
+
+  // ── Canvas Drawing Functions ──
+
+  function drawCatSprite(canvas) {
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Body
+    ctx.fillStyle = '#f97316';
+    roundRect(ctx, 24, 52, 80, 56, 10);
+    ctx.fill();
+
+    // Head
+    ctx.fillStyle = '#fb923c';
+    roundRect(ctx, 40, 18, 48, 44, 12);
+    ctx.fill();
+
+    // Ears
+    ctx.fillStyle = '#f97316';
+    ctx.beginPath();
+    ctx.moveTo(42, 20); ctx.lineTo(50, 4); ctx.lineTo(58, 20); ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(70, 20); ctx.lineTo(78, 4); ctx.lineTo(86, 20); ctx.closePath();
+    ctx.fill();
+
+    // Inner ears
+    ctx.fillStyle = '#fbbf24';
+    ctx.beginPath();
+    ctx.moveTo(46, 18); ctx.lineTo(50, 8); ctx.lineTo(54, 18); ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(74, 18); ctx.lineTo(78, 8); ctx.lineTo(82, 18); ctx.closePath();
+    ctx.fill();
+
+    // Eyes
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath(); ctx.arc(56, 34, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(72, 34, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(54, 32, 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(70, 32, 1.5, 0, Math.PI * 2); ctx.fill();
+
+    // Nose
+    ctx.fillStyle = '#f472b6';
+    ctx.beginPath(); ctx.arc(64, 42, 2.5, 0, Math.PI * 2); ctx.fill();
+
+    // Whiskers
+    ctx.strokeStyle = '#8b7aa8';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(42, 40); ctx.lineTo(24, 34);
+    ctx.moveTo(42, 44); ctx.lineTo(22, 44);
+    ctx.moveTo(42, 48); ctx.lineTo(24, 52);
+    ctx.moveTo(86, 40); ctx.lineTo(104, 34);
+    ctx.moveTo(86, 44); ctx.lineTo(106, 44);
+    ctx.moveTo(86, 48); ctx.lineTo(104, 52);
+    ctx.stroke();
+
+    // Stripes (body)
+    ctx.strokeStyle = '#b45309';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 4; i++) {
+      const x = 38 + i * 16;
+      ctx.beginPath();
+      ctx.moveTo(x, 56); ctx.lineTo(x + 6, 50);
+      ctx.stroke();
+    }
+
+    // Paws
+    ctx.fillStyle = '#fbbf24';
+    roundRect(ctx, 28, 104, 16, 10, 4); ctx.fill();
+    roundRect(ctx, 84, 104, 16, 10, 4); ctx.fill();
+
+    // Tail
+    ctx.strokeStyle = '#f97316';
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(24, 80);
+    ctx.quadraticCurveTo(8, 68, 16, 52);
+    ctx.stroke();
+    ctx.strokeStyle = '#b45309';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(14, 58); ctx.lineTo(18, 56);
+    ctx.stroke();
+  }
+
+  function drawSlimeSprite(canvas) {
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Main slime body — blob shape
+    ctx.fillStyle = '#22c55e';
+    ctx.beginPath();
+    ctx.ellipse(64, 80, 44, 38, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Top bump
+    ctx.fillStyle = '#4ade80';
+    ctx.beginPath();
+    ctx.ellipse(64, 52, 28, 20, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Highlight/shine
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.beginPath();
+    ctx.ellipse(50, 56, 12, 8, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eyes
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.ellipse(52, 58, 8, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(76, 58, 8, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Pupils
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.arc(50, 58, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(78, 58, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eye highlights
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(48, 56, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(76, 56, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Mouth
+    ctx.strokeStyle = '#166534';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(64, 74, 12, 0.1, Math.PI - 0.1);
+    ctx.stroke();
+
+    // Small bubbles
+    ctx.fillStyle = 'rgba(74,222,128,0.3)';
+    ctx.beginPath();
+    ctx.arc(86, 72, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(40, 82, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawSunlitForest(canvas) {
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Sky gradient
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, h);
+    skyGrad.addColorStop(0, '#87ceeb');
+    skyGrad.addColorStop(0.3, '#b8e0f7');
+    skyGrad.addColorStop(0.5, '#e8f5a3');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, w, h);
+
+    // Sun (top right)
+    const sunGrad = ctx.createRadialGradient(w - 40, 36, 4, w - 40, 36, 48);
+    sunGrad.addColorStop(0, '#fff7a0');
+    sunGrad.addColorStop(0.3, '#ffe066');
+    sunGrad.addColorStop(1, 'rgba(255,224,102,0)');
+    ctx.fillStyle = sunGrad;
+    ctx.beginPath();
+    ctx.arc(w - 40, 36, 48, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Sun rays
+    ctx.fillStyle = 'rgba(255,245,180,0.15)';
+    ctx.beginPath();
+    ctx.moveTo(w - 40, 36);
+    ctx.lineTo(-20, -40);
+    ctx.lineTo(-20, 20);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(w - 40, 36);
+    ctx.lineTo(-20, 60);
+    ctx.lineTo(-20, 120);
+    ctx.closePath();
+    ctx.fill();
+
+    // Far mountains
+    ctx.fillStyle = '#6b8f71';
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.55);
+    ctx.lineTo(60, h * 0.30);
+    ctx.lineTo(120, h * 0.50);
+    ctx.lineTo(160, h * 0.35);
+    ctx.lineTo(200, h * 0.48);
+    ctx.lineTo(240, h * 0.28);
+    ctx.lineTo(280, h * 0.45);
+    ctx.lineTo(w, h * 0.38);
+    ctx.lineTo(w, h);
+    ctx.lineTo(0, h);
+    ctx.closePath();
+    ctx.fill();
+
+    // Near mountains
+    ctx.fillStyle = '#4a7c59';
+    ctx.beginPath();
+    ctx.moveTo(0, h * 0.68);
+    ctx.lineTo(40, h * 0.50);
+    ctx.lineTo(80, h * 0.62);
+    ctx.lineTo(120, h * 0.45);
+    ctx.lineTo(170, h * 0.58);
+    ctx.lineTo(210, h * 0.40);
+    ctx.lineTo(250, h * 0.55);
+    ctx.lineTo(w, h * 0.48);
+    ctx.lineTo(w, h);
+    ctx.lineTo(0, h);
+    ctx.closePath();
+    ctx.fill();
+
+    // Ground
+    ctx.fillStyle = '#3d6b4f';
+    ctx.fillRect(0, h * 0.72, w, h * 0.28);
+    ctx.fillStyle = '#2d5a3a';
+    ctx.fillRect(0, h * 0.82, w, h * 0.18);
+
+    // Trees (silhouettes on sides)
+    const drawTree = (cx, cy, ch) => {
+      ctx.fillStyle = '#1a4a2e';
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx - 12, cy + ch);
+      ctx.lineTo(cx + 12, cy + ch);
+      ctx.closePath();
+      ctx.fill();
+    };
+    drawTree(10, h * 0.50, 80);
+    drawTree(38, h * 0.55, 72);
+    drawTree(w - 20, h * 0.48, 90);
+    drawTree(w - 50, h * 0.52, 78);
+    drawTree(w - 80, h * 0.58, 65);
+
+    // Light shafts
+    ctx.fillStyle = 'rgba(255,245,180,0.06)';
+    for (let i = 0; i < 4; i++) {
+      const x = 40 + i * 60;
+      ctx.beginPath();
+      ctx.moveTo(w - 40, 36);
+      ctx.lineTo(x - 20, h);
+      ctx.lineTo(x + 20, h);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  function drawCoinSound(canvas) {
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Waveform
+    ctx.strokeStyle = '#facc15';
+    ctx.lineWidth = 3;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    const points = [
+      [0, 0.5], [4, 0.45], [10, 0.42], [16, 0.48], [22, 0.35],
+      [28, 0.60], [34, 0.25], [40, 0.72], [46, 0.18], [52, 0.80],
+      [58, 0.12], [64, 0.78], [70, 0.20], [76, 0.65], [82, 0.30],
+      [88, 0.55], [94, 0.38], [100, 0.48], [106, 0.42], [112, 0.46],
+      [118, 0.50], [124, 0.52], [128, 0.50]
+    ];
+    ctx.moveTo(points[0][0], points[0][1] * h);
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i][0], points[i][1] * h);
+    }
+    ctx.stroke();
+
+    // Glow
+    ctx.strokeStyle = 'rgba(250,204,21,0.15)';
+    ctx.lineWidth = 8;
+    ctx.stroke();
+
+    // Coin icon hint
+    ctx.fillStyle = 'rgba(250,204,21,0.08)';
+    ctx.beginPath();
+    ctx.arc(64, 50, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(250,204,21,0.15)';
+    ctx.font = '22px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🪙', 64, 52);
+  }
+
+  function drawBossMusic(canvas) {
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Dark dramatic background
+    const bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, '#1a0a2e');
+    bg.addColorStop(0.5, '#2d1b4e');
+    bg.addColorStop(1, '#1a0a2e');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+
+    // Sheet music bars
+    const barW = 16;
+    const gap = 4;
+    const startX = 12;
+    const colors = ['#e879f9', '#a855f7', '#d946ef', '#c084fc', '#f0abfc', '#a78bfa'];
+
+    for (let bar = 0; bar < 6; bar++) {
+      const x = startX + bar * (barW + gap);
+      const noteCount = 3 + bar % 3;
+      const rhythm = [];
+      for (let n = 0; n < noteCount; n++) {
+        rhythm.push(0.2 + Math.random() * 0.6);
+      }
+
+      // Staff lines
+      ctx.strokeStyle = 'rgba(168,85,247,0.15)';
+      ctx.lineWidth = 0.5;
+      for (let s = 0; s < 5; s++) {
+        const sy = 12 + s * 8;
+        ctx.beginPath();
+        ctx.moveTo(x, sy);
+        ctx.lineTo(x + barW, sy);
+        ctx.stroke();
+      }
+
+      // Notes — colored rectangles (piano-roll style)
+      for (let n = 0; n < rhythm.length; n++) {
+        const nh = rhythm[n] * h * 0.7;
+        const ny = h - nh - 20;
+        const c = colors[(bar + n) % colors.length];
+        ctx.fillStyle = c;
+        const rw = Math.max(4, barW - 4 - n * 2);
+        roundRect(ctx, x + 2 + n * 2, ny, rw, nh, 2);
+        ctx.fill();
+
+        // Note head circle on top
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.beginPath();
+        ctx.arc(x + 2 + n * 2 + rw / 2, ny - 3, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Bar line
+      ctx.strokeStyle = 'rgba(168,85,247,0.25)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x + barW + 1, 4);
+      ctx.lineTo(x + barW + 1, h - 4);
+      ctx.stroke();
+    }
+
+    // Clef hint
+    ctx.fillStyle = 'rgba(232,121,249,0.15)';
+    ctx.font = '48px serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('♫', 4, 8);
+  }
+
+  function drawStoryCard(canvas) {
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Parchment background
+    const bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, '#2a1f3a');
+    bg.addColorStop(0.3, '#1e1530');
+    bg.addColorStop(1, '#15102a');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+
+    // Decorative border
+    ctx.strokeStyle = 'rgba(168,85,247,0.15)';
+    ctx.lineWidth = 2;
+    roundRect(ctx, 8, 8, w - 16, h - 16, 12);
+    ctx.stroke();
+
+    // Corner ornaments
+    const drawOrnament = (cx, cy) => {
+      ctx.fillStyle = 'rgba(168,85,247,0.2)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(168,85,247,0.1)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+      ctx.fill();
+    };
+    drawOrnament(12, 12);
+    drawOrnament(w - 12, 12);
+    drawOrnament(12, h - 12);
+    drawOrnament(w - 12, h - 12);
+
+    // Decorative line
+    ctx.strokeStyle = 'rgba(168,85,247,0.12)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(40, 28);
+    ctx.lineTo(w - 40, 28);
+    ctx.stroke();
+
+    // Ornamental initial letter
+    ctx.fillStyle = 'rgba(168,85,247,0.25)';
+    ctx.font = 'bold 38px serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('T', 20, 36);
+
+    // Sample text lines
+    ctx.fillStyle = 'rgba(200,184,232,0.3)';
+    ctx.font = '11px serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    const lines = [
+      'he Legend of the Crystal',
+      '',
+      'In the realm of Aetheria,',
+      'a hidden crystal held the',
+      'power to shape worlds.',
+      'Young Kael embarked on',
+      'a perilous journey...',
+    ];
+    lines.forEach((line, i) => {
+      ctx.fillText(line, 20, 58 + i * 16);
+    });
+
+    // Sparkle dots
+    ctx.fillStyle = 'rgba(250,204,21,0.2)';
+    for (let i = 0; i < 6; i++) {
+      ctx.beginPath();
+      ctx.arc(w - 16 - i * 12, 36 + (i % 3) * 6, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  // Choose draw function by type
+  function drawPreview(canvas, type, prompt) {
+    // Normalize canvas resolution
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    // Reset coordinate system to CSS pixels
+    canvas._drawW = rect.width;
+    canvas._drawH = rect.height;
+
+    switch (type) {
+      case 'sprite': {
+        if (prompt && prompt.toLowerCase().includes('slime')) {
+          drawSlimeSprite(canvas);
+        } else if (prompt && prompt.toLowerCase().includes('cat')) {
+          drawCatSprite(canvas);
+        } else if (prompt && prompt.toLowerCase().includes('wizard')) {
+          // Generic wizard hat
+          const ctx2 = ctx;
+          ctx2.clearRect(0, 0, rect.width, rect.height);
+          ctx2.fillStyle = '#6366f1';
+          roundRect(ctx2, 32, 40, 64, 60, 8); ctx2.fill();
+          ctx2.fillStyle = '#a78bfa';
+          ctx2.beginPath();
+          ctx2.moveTo(44, 40); ctx2.lineTo(64, 10); ctx2.lineTo(84, 40); ctx2.closePath();
+          ctx2.fill();
+          ctx2.fillStyle = '#fbbf24';
+          ctx2.beginPath();
+          ctx2.arc(64, 30, 6, 0, Math.PI * 2); ctx2.fill();
+          ctx2.fillStyle = '#1e293b';
+          ctx2.beginPath(); ctx2.arc(52, 56, 3, 0, Math.PI * 2); ctx2.fill();
+          ctx2.beginPath(); ctx2.arc(76, 56, 3, 0, Math.PI * 2); ctx2.fill();
+        } else if (prompt && prompt.toLowerCase().includes('robot')) {
+          const ctx2 = ctx;
+          ctx2.clearRect(0, 0, rect.width, rect.height);
+          ctx2.fillStyle = '#64748b';
+          roundRect(ctx2, 28, 28, 72, 72, 8); ctx2.fill();
+          ctx2.fillStyle = '#94a3b8';
+          roundRect(ctx2, 32, 60, 64, 36, 4); ctx2.fill();
+          ctx2.fillStyle = '#38bdf8';
+          ctx2.beginPath(); ctx2.arc(48, 42, 8, 0, Math.PI * 2); ctx2.fill();
+          ctx2.beginPath(); ctx2.arc(80, 42, 8, 0, Math.PI * 2); ctx2.fill();
+          ctx2.fillStyle = '#fff';
+          ctx2.beginPath(); ctx2.arc(46, 40, 3, 0, Math.PI * 2); ctx2.fill();
+          ctx2.beginPath(); ctx2.arc(78, 40, 3, 0, Math.PI * 2); ctx2.fill();
+          ctx2.fillStyle = '#ef4444';
+          ctx2.beginPath(); ctx2.arc(64, 56, 3, 0, Math.PI * 2); ctx2.fill();
+        } else {
+          // Fallback — generic cute creature
+          const ctx2 = ctx;
+          ctx2.clearRect(0, 0, rect.width, rect.height);
+          ctx2.fillStyle = '#f97316';
+          ctx2.beginPath();
+          ctx2.ellipse(64, 70, 40, 34, 0, 0, Math.PI * 2);
+          ctx2.fill();
+          ctx2.fillStyle = '#fff';
+          ctx2.beginPath(); ctx2.arc(52, 60, 6, 0, Math.PI * 2); ctx2.fill();
+          ctx2.beginPath(); ctx2.arc(76, 60, 6, 0, Math.PI * 2); ctx2.fill();
+          ctx2.fillStyle = '#1e293b';
+          ctx2.beginPath(); ctx2.arc(52, 60, 3, 0, Math.PI * 2); ctx2.fill();
+          ctx2.beginPath(); ctx2.arc(76, 60, 3, 0, Math.PI * 2); ctx2.fill();
+        }
+        break;
+      }
+      case 'background': {
+        if (prompt && prompt.toLowerCase().includes('forest')) {
+          drawSunlitForest(canvas);
+        } else if (prompt && prompt.toLowerCase().includes('cave') || prompt.toLowerCase().includes('underwater')) {
+          const ctx2 = ctx;
+          const grad = ctx2.createLinearGradient(0, 0, 0, rect.height);
+          grad.addColorStop(0, '#0c3b5e');
+          grad.addColorStop(0.5, '#0a5f7a');
+          grad.addColorStop(1, '#082a3a');
+          ctx2.fillStyle = grad;
+          ctx2.fillRect(0, 0, rect.width, rect.height);
+          // Bubbles
+          ctx2.fillStyle = 'rgba(255,255,255,0.06)';
+          for (let i = 0; i < 12; i++) {
+            ctx2.beginPath();
+            ctx2.arc(20 + i * 22 + (i % 3) * 8, 30 + i * 14, 3 + (i % 4), 0, Math.PI * 2);
+            ctx2.fill();
+          }
+          // Floor
+          ctx2.fillStyle = '#1a3a2a';
+          ctx2.fillRect(0, rect.height * 0.78, rect.width, rect.height * 0.22);
+        } else {
+          // Generic landscape
+          const ctx2 = ctx;
+          const grad = ctx2.createLinearGradient(0, 0, 0, rect.height);
+          grad.addColorStop(0, '#1a1040');
+          grad.addColorStop(0.4, '#2d2060');
+          grad.addColorStop(0.7, '#3a2a6a');
+          grad.addColorStop(1, '#1a0a30');
+          ctx2.fillStyle = grad;
+          ctx2.fillRect(0, 0, rect.width, rect.height);
+          ctx2.fillStyle = 'rgba(168,85,247,0.15)';
+          ctx2.beginPath();
+          ctx2.moveTo(0, rect.height * 0.5);
+          for (let x = 0; x <= rect.width; x += 4) {
+            ctx2.lineTo(x, rect.height * (0.5 + Math.sin(x * 0.03) * 0.1 + Math.sin(x * 0.07) * 0.05));
+          }
+          ctx2.lineTo(rect.width, rect.height);
+          ctx2.lineTo(0, rect.height);
+          ctx2.closePath();
+          ctx2.fill();
+        }
+        break;
+      }
+      case 'sound': {
+        drawCoinSound(canvas);
+        break;
+      }
+      case 'music': {
+        drawBossMusic(canvas);
+        break;
+      }
+      case 'story': {
+        drawStoryCard(canvas);
+        break;
+      }
+    }
+  }
+
+  // Helper to set canvas size for drawing
+  function setupCanvas(canvas) {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    return { w: rect.width, h: rect.height };
+  }
+
+  // ── Render Asset Cards ──
+  function renderAssets() {
+    grid.innerHTML = '';
+    if (assets.length === 0) {
+      grid.innerHTML = '<div class="empty-state"><div class="icon">🎨</div><p>No assets yet — describe something awesome!</p></div>';
+      return;
+    }
+    assets.forEach((asset, idx) => {
+      const card = document.createElement('div');
+      card.className = 'asset-card';
+      card.style.animationDelay = `${idx * 0.06}s`;
+
+      const typeEmoji = { sprite: '🎮', background: '🏞️', sound: '🔊', music: '🎵', story: '📜' }[asset.type] || '🎮';
+
+      card.innerHTML = `
+        <div class="preview">
+          <canvas></canvas>
+        </div>
+        <div class="card-body">
+          <div class="info">
+            <div class="title">${escapeHtml(asset.title)}</div>
+            <div class="subtitle">${escapeHtml(asset.subtitle)}</div>
+            <span class="type-tag ${asset.type}">${typeEmoji} ${asset.type.charAt(0).toUpperCase() + asset.type.slice(1)}</span>
+          </div>
+          <div class="actions">
+            <button class="heart-btn ${asset.liked ? 'liked' : ''}" data-idx="${idx}" title="Favorite">${asset.liked ? '❤️' : '🤍'}</button>
+            <button class="download-btn" data-idx="${idx}" title="Download">⬇️</button>
+          </div>
+        </div>
+      `;
+
+      // Draw preview canvas
+      const canvas = card.querySelector('canvas');
+      // Set CSS size (actual drawing happens after layout)
+
+      // Render after layout
+      requestAnimationFrame(() => {
+        const rect = canvas.getBoundingClientRect();
+        if (rect.width > 0) {
+          const dpr = window.devicePixelRatio || 1;
+          canvas.width = rect.width * dpr;
+          canvas.height = rect.height * dpr;
+          const ctx = canvas.getContext('2d');
+          ctx.scale(dpr, dpr);
+          canvas._drawW = rect.width;
+          canvas._drawH = rect.height;
+          drawPreview(canvas, asset.type, asset.prompt);
+        }
+      });
+
+      // Click to open lightbox
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.actions')) return;
+        openLightbox(asset, canvas);
+      });
+
+      grid.appendChild(card);
+
+      // Re-draw on resize (debounced)
+      if (!card._resizeHandler) {
+        card._resizeHandler = () => {
+          const c = card.querySelector('canvas');
+          const r = c.getBoundingClientRect();
+          if (r.width > 0) {
+            const dpr = window.devicePixelRatio || 1;
+            c.width = r.width * dpr;
+            c.height = r.height * dpr;
+            const ctx = c.getContext('2d');
+            ctx.scale(dpr, dpr);
+            c._drawW = r.width;
+            c._drawH = r.height;
+            drawPreview(c, asset.type, asset.prompt);
+          }
+        };
+        // Will be called on resize via listener below
+      }
+    });
+  }
+
+  // ── Event Delegation (Heart & Download) ──
+  grid.addEventListener('click', (e) => {
+    const heartBtn = e.target.closest('.heart-btn');
+    const dlBtn = e.target.closest('.download-btn');
+
+    if (heartBtn) {
+      const idx = parseInt(heartBtn.dataset.idx);
+      assets[idx].liked = !assets[idx].liked;
+      renderAssets();
+      return;
+    }
+
+    if (dlBtn) {
+      const idx = parseInt(dlBtn.dataset.idx);
+      const asset = assets[idx];
+      // Create a small "downloaded" snapshot
+      const card = dlBtn.closest('.asset-card');
+      const canvas = card.querySelector('canvas');
+      const link = document.createElement('a');
+      link.download = `${asset.title.toLowerCase().replace(/\s+/g, '-')}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      return;
+    }
+  });
+
+  // ── Lightbox ──
+  function openLightbox(asset, sourceCanvas) {
+    lbTitle.textContent = `${typeEmoji(asset.type)} ${asset.title}`;
+    lbMeta.textContent = `${asset.subtitle} · ${asset.type.charAt(0).toUpperCase() + asset.type.slice(1)}`;
+
+    lbPreview.innerHTML = '';
+    const canvas = document.createElement('canvas');
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    lbPreview.appendChild(canvas);
+    lightbox.classList.add('active');
+
+    requestAnimationFrame(() => {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width > 0) {
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+        canvas._drawW = rect.width;
+        canvas._drawH = rect.height;
+        drawPreview(canvas, asset.type, asset.prompt);
+      }
+    });
+
+    document.body.style.overflow = 'hidden';
+  }
+
+  function typeEmoji(type) {
+    return { sprite: '🎮', background: '🏞️', sound: '🔊', music: '🎵', story: '📜' }[type] || '🎨';
+  }
+
+  function closeLightbox() {
+    lightbox.classList.remove('active');
+    lbPreview.innerHTML = '';
+    document.body.style.overflow = '';
+  }
+
+  lbClose.addEventListener('click', closeLightbox);
+  lightbox.addEventListener('click', (e) => {
+    if (e.target === lightbox) closeLightbox();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && lightbox.classList.contains('active')) closeLightbox();
+  });
+
+  // ── Autocomplete ──
+  promptInput.addEventListener('input', onInputChange);
+  promptInput.addEventListener('keydown', onInputKeydown);
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.autocomplete-wrap')) {
+      autoList.classList.remove('active');
+      highlightedIdx = -1;
+    }
+  });
+
+  function onInputChange() {
+    const val = promptInput.value.toLowerCase();
+    if (!val.trim()) {
+      autoList.classList.remove('active');
+      highlightedIdx = -1;
+      typingIndicator.textContent = '';
+      return;
+    }
+
+    const matches = SUGGESTIONS.filter(s => s.text.toLowerCase().includes(val));
+    if (matches.length === 0) {
+      autoList.classList.remove('active');
+      highlightedIdx = -1;
+      typingIndicator.textContent = '✨ Type something unique...';
+      return;
+    }
+
+    autoList.innerHTML = '';
+    matches.slice(0, 5).forEach((match, i) => {
+      const item = document.createElement('div');
+      item.className = 'autocomplete-item';
+      item.dataset.text = match.text;
+      item.dataset.type = match.type;
+      item.innerHTML = `${escapeHtml(match.text)} <span class="type-badge">${typeEmoji(match.type)} ${match.type}</span>`;
+      item.addEventListener('click', () => {
+        promptInput.value = match.text;
+        autoList.classList.remove('active');
+        highlightedIdx = -1;
+        typingIndicator.textContent = `✨ Ready to generate a ${match.type}!`;
+      });
+      autoList.appendChild(item);
+    });
+
+    autoList.classList.add('active');
+    highlightedIdx = -1;
+    typingIndicator.textContent = `💡 ${matches.length} suggestion${matches.length > 1 ? 's' : ''} available`;
+  }
+
+  function onInputKeydown(e) {
+    const items = autoList.querySelectorAll('.autocomplete-item');
+    if (!autoList.classList.contains('active') || items.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      highlightedIdx = Math.min(highlightedIdx + 1, items.length - 1);
+      updateHighlight(items);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      highlightedIdx = Math.max(highlightedIdx - 1, -1);
+      updateHighlight(items);
+    } else if (e.key === 'Enter' && highlightedIdx >= 0) {
+      e.preventDefault();
+      items[highlightedIdx].click();
+    } else if (e.key === 'Escape') {
+      autoList.classList.remove('active');
+      highlightedIdx = -1;
+    }
+  }
+
+  function updateHighlight(items) {
+    items.forEach((item, i) => {
+      item.classList.toggle('highlighted', i === highlightedIdx);
+    });
+    if (highlightedIdx >= 0) {
+      items[highlightedIdx].scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  // ── Generate ──
+  generateBtn.addEventListener('click', generateAsset);
+  promptInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      // Only generate if autocomplete not open with highlight
+      if (!autoList.classList.contains('active') || highlightedIdx < 0) {
+        generateAsset();
+      }
+    }
+  });
+
+  function generateAsset() {
+    if (generateBtn.classList.contains('generating')) return;
+
+    const prompt = promptInput.value.trim();
+    if (!prompt) {
+      typingIndicator.textContent = '⚠️ Describe something first!';
+      promptInput.focus();
+      return;
+    }
+
+    // Generating animation
+    generateBtn.classList.add('generating');
+    generateBtn.disabled = true;
+    typingIndicator.textContent = '🎨 Generating your asset...';
+
+    // Simulate generation (2 seconds)
+    setTimeout(() => {
+      const newAsset = {
+        id: 'gen-' + Date.now(),
+        prompt: prompt,
+        type: selectedType,
+        title: capitalizeWords(prompt),
+        subtitle: `${selectedType.charAt(0).toUpperCase() + selectedType.slice(1)} generated from your description`,
+        liked: false,
+      };
+      assets.push(newAsset);
+      renderAssets();
+      generateBtn.classList.remove('generating');
+      generateBtn.disabled = false;
+      typingIndicator.textContent = `✅ ${typeEmoji(selectedType)} "${newAsset.title}" created!`;
+      promptInput.value = '';
+      autoList.classList.remove('active');
+      highlightedIdx = -1;
+
+      // Scroll to new card
+      setTimeout(() => {
+        const cards = grid.querySelectorAll('.asset-card');
+        if (cards.length > 0) {
+          cards[cards.length - 1].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }, 100);
+    }, 2000);
+  }
+
+  // ── Utility ──
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function capitalizeWords(str) {
+    return str.replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  // ── Window resize: re-draw canvases ──
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      // Redraw only visible cards
+      document.querySelectorAll('.asset-card canvas').forEach(canvas => {
+        const card = canvas.closest('.asset-card');
+        const idx = Array.from(grid.children).indexOf(card);
+        if (idx >= 0 && idx < assets.length) {
+          const rect = canvas.getBoundingClientRect();
+          if (rect.width > 0) {
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            const ctx = canvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+            canvas._drawW = rect.width;
+            canvas._drawH = rect.height;
+            drawPreview(canvas, assets[idx].type, assets[idx].prompt);
+          }
+        }
+      });
+    }, 200);
+  });
+
+  // ── Initial render ──
+  renderAssets();
+
+  // ── Fix initial canvas sizing after layout ──
+  // Rerender after fonts and layout settle
+  setTimeout(() => renderAssets(), 50);
+  // And again when fully loaded
+  window.addEventListener('load', () => renderAssets());
+
+})();
+</script>
+</body>
+</html>
