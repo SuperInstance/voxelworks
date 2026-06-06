@@ -273,7 +273,7 @@ function main() {
 
   const gameHtmlContent = fs.readFileSync(gameHtmlPath, 'utf8');
   assert('game HTML loads manifest from localStorage', gameHtmlContent.includes('voxelworks_block_manifest'));
-  assert('game HTML supports ?mode=blocks param', gameHtmlContent.includes('mode=blocks'));
+  assert('game HTML supports ?mode=blocks param', gameHtmlContent.includes("params.get('mode')"));
 
   // Block editor integration
   const editorPath = path.join(VOXELWORKS_DIR, 'block-editor', 'index.html');
