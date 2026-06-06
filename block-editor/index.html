@@ -369,7 +369,7 @@ CATEGORIES.forEach(c=>{
 // ────────────────────────────────────────
 let instances = [];       // all block instances on workspace
 let nextId    = 1;
-let drag      = null;     // { inst, el, startMX, startMY, offsetX, offsetY, isClone, origStack, snapTarget }
+let drag      = null;     // { inst, el, startMX, startMY, offsetX, offsetY, snapTarget }
 const workspaceEl = document.getElementById('workspace');
 const paletteEl   = document.getElementById('palette');
 const outputEl    = document.getElementById('output-content');
@@ -525,8 +525,14 @@ function getParent(inst){ return inst.parentId!==null ? findInst(inst.parentId) 
 /** Walk root -> ... -> last */
 function getStackBlocks(root){
   const arr=[];
+  const visited=new Set();
   let cur=root;
-  while(cur){ arr.push(cur); cur=getChild(cur); }
+  while(cur){
+    if(visited.has(cur.id)){ console.error('Cycle detected in stack, breaking'); break; }
+    visited.add(cur.id);
+    arr.push(cur);
+    cur=getChild(cur);
+  }
   return arr;
 }
 
@@ -734,10 +740,13 @@ function createWorkspaceBlock(bDef, x, y, fields){
   return inst;
 }
 
-function removeBlock(inst){
+function removeBlock(inst, _visited){
+  const visited=_visited||new Set();
+  if(visited.has(inst.id)){ console.error('Cycle detected in removeBlock, breaking'); return; }
+  visited.add(inst.id);
   // detach children first
   let child=getChild(inst);
-  if(child) removeBlock(child);
+  if(child) removeBlock(child, visited);
   // detach from parent
   const parent=getParent(inst);
   if(parent){ parent.childId=null; }
@@ -908,8 +917,6 @@ function startDrag(e, inst){
       startMY: e.clientY,
       offsetX: e.clientX - wsRect.left - dragInst.x,
       offsetY: e.clientY - wsRect.top - dragInst.y,
-      isClone: true,
-      origStack: null,
       snapTarget: null
     };
   }else{
@@ -930,8 +937,6 @@ function startDrag(e, inst){
       startMY: e.clientY,
       offsetX: e.clientX - rootRect.left,
       offsetY: e.clientY - rootRect.top,
-      isClone: false,
-      origStack: blocks,
       snapTarget: null
     };
   }
@@ -1155,7 +1160,7 @@ async function executeBlockChain(startBlock, prefix){
 // ────────────────────────────────────────
 //  EXECUTION ENGINE — Main
 // ────────────────────────────────────────
-async function executeAll(){
+async function executeAll(rootsFilter){
   if(executionRunning) return;
   executionRunning=true;
   executionAborted=false;
@@ -1169,9 +1174,10 @@ async function executeAll(){
   hideSpeech();
   drawSprite();
 
-  const roots=instances.filter(i=>i.parentId===null);
+  let roots=instances.filter(i=>i.parentId===null);
+  if(rootsFilter) roots=roots.filter(rootsFilter);
   if(roots.length===0){
-    appendOutput('info','No blocks on workspace.');
+    appendOutput('info','No blocks to execute.');
     setRunningUI(false,'done (idle)');
     executionRunning=false;
     return;
@@ -1489,11 +1495,9 @@ const stageEl = document.getElementById('stage');
 if(stageEl){
   stageEl.addEventListener('click',(e)=>{
     if(e.target.tagName==='CANVAS' || e.target===stageEl){
-      // Find all "when clicked" hat blocks
-      const roots=instances.filter(i=>i.parentId===null);
-      const clickedRoots=roots.filter(r=>r.def.id==='when_clicked');
-      if(clickedRoots.length>0 && !executionRunning){
-        executeAll();
+      // Only run "when clicked" hat stacks (not all stacks)
+      if(!executionRunning){
+        executeAll(r=>r.def.id==='when_clicked');
       }
     }
   });
