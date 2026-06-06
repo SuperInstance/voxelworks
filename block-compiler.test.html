@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Block → Phaser Compiler Test Suite</title>
+<style>
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg:#0f0f1a;
+    --bg2:#1a1a2e;
+    --bg3:#232346;
+    --text:#e8e8f0;
+    --text2:#8888aa;
+    --border:#2a2a4a;
+    --accent:#6C6CE0;
+    --motion:#4C97FF;
+    --looks:#9966FF;
+    --control:#FFAB19;
+    --sound:#CF63CF;
+    --green:#44cc44;
+    --red:#ff4d4d;
+    --yellow:#FFAB19;
+  }
+  html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;background:var(--bg);color:var(--text);overflow:hidden}
+  #app{display:flex;flex-direction:column;height:100vh}
+  header{
+    display:flex;align-items:center;gap:12px;padding:8px 16px;
+    background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;z-index:10
+  }
+  header h1{font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+  header h1 span{color:var(--accent)}
+  header .spacer{flex:1}
+  #test-count{font-size:12px;color:var(--text2)}
+  #test-results{font-size:12px;font-weight:600}
+  .test-area{display:flex;flex:1;overflow:hidden}
+  .sidebar{
+    width:340px;background:var(--bg2);border-right:1px solid var(--border);
+    overflow-y:auto;flex-shrink:0
+  }
+  .sidebar::-webkit-scrollbar{width:6px}
+  .sidebar::-webkit-scrollbar-track{background:transparent}
+  .sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+  .main-panel{flex:1;display:flex;flex-direction:column;overflow:hidden}
+  .tab-bar{
+    display:flex;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0
+  }
+  .tab{
+    padding:8px 18px;font-size:12px;font-weight:600;cursor:pointer;
+    border-bottom:2px solid transparent;transition:.12s;color:var(--text2);
+    text-transform:uppercase;letter-spacing:0.5px
+  }
+  .tab:hover{color:var(--text);background:rgba(255,255,255,.03)}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+  .tab-content{flex:1;overflow:auto;display:none;padding:0}
+  .tab-content.active{display:block}
+  .tab-content pre{
+    padding:12px 16px;font-family:'Cascadia Code','Fira Code','Consolas',monospace;
+    font-size:12px;line-height:1.6;white-space:pre;overflow:auto;
+    background:var(--bg);margin:0;color:var(--text);
+    max-height:calc(100vh - 120px)
+  }
+  .tab-content pre .key{color:var(--accent)}
+  .tab-content pre .str{color:#8aff8a}
+  .tab-content pre .num{color:#ffab19}
+  .tab-content pre .bool{color:#4C97FF}
+  .tab-content pre .null{color:var(--text2)}
+  .tab-content pre .punctuation{color:var(--text2)}
+  .tab-content pre .comment{color:#555;font-style:italic}
+  .hint{
+    padding:12px 16px;color:var(--text2);font-size:13px;
+    background:var(--bg3);border-bottom:1px solid var(--border)
+  }
+  .hint strong{color:var(--text)}
+  .test-case{
+    border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s
+  }
+  .test-case:hover{background:rgba(255,255,255,.02)}
+  .test-header{
+    display:flex;align-items:center;gap:10px;
+    padding:10px 14px
+  }
+  .test-badge{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:22px;height:22px;border-radius:3px;font-size:11px;font-weight:700;flex-shrink:0
+  }
+  .test-badge.pass{background:var(--green);color:#000}
+  .test-badge.fail{background:var(--red);color:#fff}
+  .test-badge.pending{background:var(--border);color:var(--text2)}
+  .test-badge.run{background:var(--yellow);color:#000}
+  .test-name{font-size:13px;font-weight:500;flex:1}
+  .test-detail{font-size:11px;color:var(--text2)}
+  .test-output{
+    padding:8px 14px 10px 46px;font-size:12px;line-height:1.5;display:none;
+    background:rgba(0,0,0,.15)
+  }
+  .test-output.open{display:block}
+  .test-output .success{color:#8aff8a}
+  .test-output .error{color:#ff6b6b}
+  .test-output .info{color:var(--text2)}
+  .test-output .key{color:var(--accent);font-weight:600}
+  .btn-run-all{
+    padding:6px 16px;margin:10px 14px;
+    background:var(--accent);color:#fff;border:none;border-radius:3px;
+    font-size:12px;font-weight:600;cursor:pointer;transition:.12s
+  }
+  .btn-run-all:hover{filter:brightness(1.15)}
+  .btn-run-one{
+    padding:2px 10px;background:var(--bg3);border:1px solid var(--border);
+    border-radius:2px;color:var(--text2);font-size:11px;cursor:pointer;transition:.1s
+  }
+  .btn-run-one:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .status-bar{
+    display:flex;align-items:center;gap:12px;
+    padding:6px 16px;background:var(--bg2);border-top:1px solid var(--border);
+    font-size:11px;color:var(--text2);flex-shrink:0
+  }
+  .status-bar .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .status-bar .dot.green{background:var(--green)}
+  .status-bar .dot.red{background:var(--red)}
+  .status-bar .dot.yellow{background:var(--yellow)}
+  .status-bar .dot.gray{background:var(--border)}
+  .json-collapse{cursor:pointer;user-select:none}
+  .json-collapse:hover{color:var(--accent)}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1><span>◆</span> Block → Phaser Compiler <span style="font-weight:400;color:var(--text2);font-size:12px">test suite</span></h1>
+    <span class="spacer"></span>
+    <span id="test-count">0 / 0 passed</span>
+    <span id="test-results"></span>
+  </header>
+  <div class="test-area">
+    <div class="sidebar" id="test-list"></div>
+    <div class="main-panel">
+      <div class="tab-bar">
+        <div class="tab active" data-tab="output">Output</div>
+        <div class="tab" data-tab="lgsp">LGSP Manifest</div>
+        <div class="tab" data-tab="phaser">Phaser Config</div>
+        <div class="tab" data-tab="commands">Commands</div>
+      </div>
+      <div class="hint">
+        <strong>▲</strong> Test cases exercise individual compiler modules.
+        Click <strong>▶ Run All</strong> or click individual ▶ buttons.
+      </div>
+      <div class="tab-content active" id="tab-output">
+        <pre id="output-display"><span class="comment">// Output will appear here after running tests</span>
+<span class="comment">// Each test case exercises a specific compiler module.</span>
+<span class="comment">// Click ▶ Run All or a specific test's ▶ button.</span>
+</pre>
+      </div>
+      <div class="tab-content" id="tab-lgsp">
+        <pre id="lgsp-display"><span class="comment">// LGSP manifest output will appear here</span>
+</pre>
+      </div>
+      <div class="tab-content" id="tab-phaser">
+        <pre id="phaser-display"><span class="comment">// Phaser configuration output will appear here</span>
+</pre>
+      </div>
+      <div class="tab-content" id="tab-commands">
+        <pre id="commands-display"><span class="comment">// Compiled LGSP commands will appear here</span>
+</pre>
+      </div>
+    </div>
+  </div>
+  <div class="status-bar" id="status-bar">
+    <span class="dot gray" id="status-dot"></span>
+    <span id="status-text">Ready</span>
+    <span class="spacer" style="flex:1"></span>
+    <span id="elapsed"></span>
+  </div>
+</div>
+
+<script type="module">
+import { compileBlockStacks, compileToLgspManifest, compileCommands, buildPhaserSceneConfig, createFitnessFlush, createEvolutionRequest, createStateSnapshot, BLOCK_DEFS } from './block-compiler.js';
+
+// ─────────────────────────────────────────────
+//  HELPERS
+// ─────────────────────────────────────────────
+
+let nextId = 1;
+function uid() { return nextId++; }
+
+function makeBlock(blockId, fields, x = 0, y = 0, options = {}) {
+  const def = BLOCK_DEFS[blockId];
+  if (!def) throw new Error(`Unknown block: ${blockId}`);
+  const f = {};
+  (def.args || []).forEach(a => {
+    f[a.key] = fields[a.key] !== undefined ? fields[a.key] : a.def;
+  });
+  return {
+    id: uid(),
+    def: { id: blockId, label: def.label, args: def.args, hat: !!def.hat, color: getBlockColor(blockId) },
+    fields: f,
+    x, y,
+    parentId: options.parentId !== undefined ? options.parentId : (options.parentId === null ? null : null),
+    childId: options.childId !== undefined ? options.childId : null,
+    ...options,
+  };
+}
+
+function getBlockColor(blockId) {
+  const catMap = {
+    move_steps: '#4C97FF', turn_cw: '#4C97FF', turn_ccw: '#4C97FF', goto_xy: '#4C97FF', jump: '#4C97FF',
+    say: '#9966FF', think: '#9966FF', show: '#9966FF', hide: '#9966FF',
+    when_clicked: '#FFAB19', if_then: '#FFAB19', repeat: '#FFAB19', wait: '#FFAB19',
+    play_sound: '#CF63CF', stop_sound: '#CF63CF', play_drum: '#CF63CF',
+  };
+  return catMap[blockId] || '#6C6CE0';
+}
+
+function linkStack(blocks) {
+  for (let i = 0; i < blocks.length; i++) {
+    if (i > 0) blocks[i].parentId = blocks[i - 1].id;
+    if (i < blocks.length - 1) blocks[i].childId = blocks[i + 1].id;
+  }
+  return blocks;
+}
+
+// ─────────────────────────────────────────────
+//  TEST CASE DEFINITIONS
+// ─────────────────────────────────────────────
+
+const testCases = [];
+
+// ── Test 1: Basic motion stack ──
+testCases.push({
+  name: 'Basic motion (when_clicked → move → turn → jump)',
+  description: 'when_clicked hat + move 10 steps + turn 15° + jump',
+  build: () => {
+    return linkStack([
+      makeBlock('when_clicked', {}),
+      makeBlock('move_steps', { '%1': 10 }),
+      makeBlock('turn_cw', { '%1': 15 }),
+      makeBlock('jump', {}),
+    ]);
+  },
+  check: (result) => {
+    const tests = [];
+    tests.push({ name: 'has scripts', pass: result.scripts && result.scripts.length > 0 });
+    tests.push({ name: 'trigger is on_click', pass: result.scripts[0]?.trigger === 'on_click' });
+    tests.push({ name: 'timeline has 3 actions', pass: result.scripts[0]?.timeline?.length === 3 });
+    tests.push({ name: 'total duration > 0', pass: result.totalDurationMs > 0 });
+    tests.push({ name: 'commands generated', pass: result.commands.length > 0 });
+    return tests;
+  },
+});
+
+// ── Test 2: Looks blocks ──
+testCases.push({
+  name: 'Looks blocks (say, think, show, hide)',
+  description: 'when_clicked → say "Hello!" 2s → think 1s → show → hide',
+  build: () => {
+    return linkStack([
+      makeBlock('when_clicked', {}),
+      makeBlock('say', { '%1': 'Hello!', '%2': 2 }),
+      makeBlock('think', { '%1': 'Hmm...', '%2': 1 }),
+      makeBlock('show', {}),
+      makeBlock('hide', {}),
+    ]);
+  },
+  check: (result) => {
+    const acts = result.scripts[0]?.timeline || [];
+    const sayAct = acts.find(a => a.type === 'say');
+    const thinkAct = acts.find(a => a.type === 'think');
+    const showAct = acts.find(a => a.type === 'show');
+    const hideAct = acts.find(a => a.type === 'hide');
+    return [
+      { name: 'say action exists', pass: !!sayAct },
+      { name: 'say text is "Hello!"', pass: sayAct?.params?.text === 'Hello!' },
+      { name: 'think action exists', pass: !!thinkAct },
+      { name: 'show action exists', pass: !!showAct },
+      { name: 'hide action exists', pass: !!hideAct },
+      { name: 'say phaserAction type is speech', pass: sayAct?.phaserAction?.type === 'speech' },
+    ];
+  },
+});
+
+// ── Test 3: Control flow ──
+testCases.push({
+  name: 'Control flow (repeat 3 → wait 0.5s)',
+  description: 'when_clicked → repeat 3 → wait 0.5s → move 10 steps',
+  build: () => {
+    const hat = makeBlock('when_clicked', {});
+    const repeat = makeBlock('repeat', { '%1': 3 });
+    const wait = makeBlock('wait', { '%1': 0.5 });
+    const move = makeBlock('move_steps', { '%1': 10 });
+    return linkStack([hat, repeat, wait, move]);
+  },
+  check: (result) => {
+    const acts = result.scripts[0]?.timeline || [];
+    const repeatAct = acts.find(a => a.type === 'repeat');
+    return [
+      { name: 'timeline has entries', pass: acts.length > 0 },
+      { name: 'repeat action exists', pass: !!repeatAct },
+      { name: 'repeat count is 3', pass: repeatAct?.params?.count === 3 },
+      { name: 'repeat has body actions', pass: (repeatAct?.body?.length || 0) > 0 },
+      { name: 'commands include loop', pass: result.commands.some(c => c.type === 'loop') },
+    ];
+  },
+});
+
+// ── Test 4: If/then conditional ──
+testCases.push({
+  name: 'Conditional (if_then with true condition)',
+  description: 'when_clicked → if true → say "Yes!" 1s',
+  build: () => {
+    const hat = makeBlock('when_clicked', {});
+    const ifBlock = makeBlock('if_then', { '%1': 'true' });
+    const say = makeBlock('say', { '%1': 'Yes!', '%2': 1 });
+    return linkStack([hat, ifBlock, say]);
+  },
+  check: (result) => {
+    const acts = result.scripts[0]?.timeline || [];
+    const ifAct = acts.find(a => a.type === 'if_then');
+    return [
+      { name: 'if_then action exists', pass: !!ifAct },
+      { name: 'condition is true', pass: ifAct?.params?.condition === 'true' },
+      { name: 'body has say action', pass: (ifAct?.body || []).some(a => a.type === 'say') },
+      { name: 'phaserAction type is conditional', pass: ifAct?.phaserAction?.type === 'conditional' },
+    ];
+  },
+});
+
+// ── Test 5: Sound blocks ──
+testCases.push({
+  name: 'Sound blocks (play_sound, stop_sound, play_drum)',
+  description: 'when_clicked → play_sound meow → play_drum snare → stop_sound',
+  build: () => {
+    return linkStack([
+      makeBlock('when_clicked', {}),
+      makeBlock('play_sound', { '%1': 'meow' }),
+      makeBlock('play_drum', { '%1': 'snare', '%2': 0.25 }),
+      makeBlock('stop_sound', {}),
+    ]);
+  },
+  check: (result) => {
+    const acts = result.scripts[0]?.timeline || [];
+    const soundAct = acts.find(a => a.type === 'play_sound');
+    const drumAct = acts.find(a => a.type === 'play_drum');
+    const stopAct = acts.find(a => a.type === 'stop_sound');
+    return [
+      { name: 'play_sound action exists', pass: !!soundAct },
+      { name: 'sound is "meow"', pass: soundAct?.params?.sound === 'meow' },
+      { name: 'play_drum action exists', pass: !!drumAct },
+      { name: 'drum is "snare"', pass: drumAct?.params?.drum === 'snare' },
+      { name: 'stop_sound action exists', pass: !!stopAct },
+    ];
+  },
+});
+
+// ── Test 6: Full game stack (mixed categories) ──
+testCases.push({
+  name: 'Full mixed stack (motion + looks + control + sound)',
+  description: 'when_clicked → goto 0 100 → repeat 2 → say "Jumping!" 1s → jump → play_sound pop → wait 0.3s',
+  build: () => {
+    const hat = makeBlock('when_clicked', {});
+    const goto = makeBlock('goto_xy', { '%1': 0, '%2': 100 });
+    const repeat = makeBlock('repeat', { '%1': 2 });
+    const say = makeBlock('say', { '%1': 'Jumping!', '%2': 1 });
+    const jump = makeBlock('jump', {});
+    const sound = makeBlock('play_sound', { '%1': 'pop' });
+    const wait = makeBlock('wait', { '%1': 0.3 });
+    return linkStack([hat, goto, repeat, say, jump, sound, wait]);
+  },
+  check: (result) => {
+    const acts = result.scripts[0]?.timeline || [];
+    return [
+      { name: 'has 6+ actions', pass: acts.length >= 6 },
+      { name: 'has goto action', pass: acts.some(a => a.type === 'goto') },
+      { name: 'has repeat action', pass: acts.some(a => a.type === 'repeat') },
+      { name: 'play_sound pop exists', pass: acts.some(a => a.type === 'play_sound' && a.params?.sound === 'pop') },
+      { name: 'wait exists', pass: acts.some(a => a.type === 'wait') },
+      { name: 'has commands', pass: result.commands.length > 0 },
+      { name: 'stats reported', pass: !!result.stats },
+    ];
+  },
+});
+
+// ── Test 7: LGSP Manifest generation ──
+testCases.push({
+  name: 'LGSP manifest generation',
+  description: 'compileToLgspManifest produces valid LGSP block_manifest JSON',
+  build: () => {
+    const instances = linkStack([
+      makeBlock('when_clicked', {}),
+      makeBlock('move_steps', { '%1': 10 }),
+    ]);
+    return instances;
+  },
+  check: (manifest) => {
+    return [
+      { name: 'has protocol field', pass: manifest.protocol === 'lgsp/v0.1.0' },
+      { name: 'type is block_manifest', pass: manifest.type === 'block_manifest' },
+      { name: 'has scripts array', pass: Array.isArray(manifest.scripts) },
+      { name: 'script count matches', pass: manifest.scriptCount > 0 },
+      { name: 'has phases', pass: Array.isArray(manifest.phases) },
+      { name: 'has compiledTimelines', pass: Array.isArray(manifest.compiledTimelines) },
+      { name: 'has gameId', pass: !!manifest.gameId },
+      { name: 'has createdAt date', pass: !!manifest.createdAt },
+    ];
+  },
+});
+
+// ── Test 8: LGSP Commands - all block types ──
+testCases.push({
+  name: 'LGSP commands - all block types',
+  description: 'Verify every block type produces an LGSP Command',
+  build: () => {
+    const allTypes = Object.keys(BLOCK_DEFS).filter(id => id !== 'when_clicked');
+    const blocks = [{id: uid(), def: {id: 'when_clicked', label: 'when clicked', args: [], hat: true, color: '#FFAB19'}, fields: {}, x:0, y:0, parentId:null, childId:null}];
+    for (const bt of allTypes) {
+      const def = BLOCK_DEFS[bt];
+      const fields = {};
+      (def.args || []).forEach(a => { fields[a.key] = a.def; });
+      blocks.push({
+        id: uid(),
+        def: { id: bt, label: def.label, args: def.args, hat: false, color: getBlockColor(bt) },
+        fields,
+        x: 0, y: 0,
+        parentId: null, childId: null,
+      });
+    }
+    linkStack(blocks);
+    return blocks;
+  },
+  check: (result) => {
+    // result is the compileBlockStacks output
+    const cmdTypes = [...new Set(result.commands.map(c => c.type))];
+    return [
+      { name: 'commands generated', pass: result.commands.length > 0 },
+      { name: 'has move type', pass: cmdTypes.includes('move') },
+      { name: 'has teleport type', pass: cmdTypes.includes('teleport') },
+      { name: 'has conditional type', pass: cmdTypes.includes('conditional') || cmdTypes.some(c => c.params?.condition) },
+      { name: 'has emit_event type', pass: cmdTypes.includes('emit_event') },
+    ];
+  },
+});
+
+// ── Test 9: Fitness flush ──
+testCases.push({
+  name: 'Fitness flush wire format',
+  description: 'createFitnessFlush produces valid LGSP JSON',
+  build: () => null,
+  check: () => {
+    const flush = createFitnessFlush({
+      instanceId: 'test-001',
+      generation: 3,
+      events: [
+        { actorEntityId: 'spider_01', speciesId: 'arachnid_hunter', taskId: 'chase', fitnessDelta: 0.15, eventType: 'caught_player', context: { dist: 320 }, tick: 100, timestamp: Date.now() },
+        { actorEntityId: 'spider_02', speciesId: 'arachnid_hunter', taskId: 'chase', fitnessDelta: -0.05, eventType: 'missed_player', context: { dist: 100 }, tick: 200, timestamp: Date.now() },
+      ],
+    });
+    return [
+      { name: 'protocol field', pass: flush.protocol === 'lgsp/v0.1.0' },
+      { name: 'type is fitness_flush', pass: flush.type === 'fitness_flush' },
+      { name: 'instanceId set', pass: flush.instanceId === 'test-001' },
+      { name: 'generation set', pass: flush.generation === 3 },
+      { name: 'events array present', pass: Array.isArray(flush.events) && flush.events.length === 2 },
+      { name: 'speciesSummaries built', pass: !!flush.speciesSummaries.arachnid_hunter },
+      { name: 'event distribution counted', pass: flush.speciesSummaries.arachnid_hunter.eventDistribution.caught_player === 1 },
+    ];
+  },
+});
+
+// ── Test 10: Evolution request ──
+testCases.push({
+  name: 'Evolution request wire format',
+  description: 'createEvolutionRequest produces valid LGSP JSON',
+  build: () => null,
+  check: () => {
+    const req = createEvolutionRequest({
+      instanceId: 'test-001',
+      sourceGeneration: 4,
+      currentDna: { arachnid_hunter: { speed: 1.7, patrolRange: 180, aggression: 0.63 } },
+    });
+    return [
+      { name: 'protocol field', pass: req.protocol === 'lgsp/v0.1.0' },
+      { name: 'type is evolution_request', pass: req.type === 'evolution_request' },
+      { name: 'sourceGeneration set', pass: req.sourceGeneration === 4 },
+      { name: 'config has mutationRate', pass: req.config.mutationRate === 0.15 },
+      { name: 'currentDna present', pass: !!req.currentDna.arachnid_hunter },
+    ];
+  },
+});
+
+// ── Test 11: State snapshot ──
+testCases.push({
+  name: 'State snapshot wire format',
+  description: 'createStateSnapshot produces valid LGSP JSON',
+  build: () => null,
+  check: () => {
+    const snap = createStateSnapshot({
+      instanceId: 'test-001',
+      gameId: 'cat-vs-spiders-v1',
+      generation: 4,
+      dnaPool: { arachnid_hunter: { current: { speed: 1.7 } } },
+    });
+    return [
+      { name: 'type is state_snapshot', pass: snap.type === 'state_snapshot' },
+      { name: 'instanceId set', pass: snap.instanceId === 'test-001' },
+      { name: 'generation set', pass: snap.generation === 4 },
+      { name: 'dnaPool present', pass: !!snap.dnaPool.arachnid_hunter },
+      { name: 'forkParent is null', pass: snap.forkParent === null },
+    ];
+  },
+});
+
+// ── Test 12: Phaser scene config ──
+testCases.push({
+  name: 'Phaser scene config builder',
+  description: 'buildPhaserSceneConfig produces Phaser-compatible events/config',
+  build: () => {
+    return linkStack([
+      makeBlock('when_clicked', {}),
+      makeBlock('goto_xy', { '%1': 200, '%2': 150 }),
+    ]);
+  },
+  check: (compiled) => {
+    const sceneCfg = buildPhaserSceneConfig(compiled);
+    return [
+      { name: 'events array present', pass: Array.isArray(sceneCfg.events) },
+      { name: 'has pointerdown event', pass: sceneCfg.events.some(e => e.trigger === 'pointerdown') },
+      { name: 'has uiOverrides', pass: !!sceneCfg.uiOverrides },
+      { name: 'sprite state included', pass: !!sceneCfg.uiOverrides.sprite },
+    ];
+  },
+});
+
+// ── Test 13: Empty / edge case ──
+testCases.push({
+  name: 'Empty instances (edge case)',
+  description: 'Empty array returns config with no scripts, no errors',
+  build: () => [],
+  check: (result) => {
+    return [
+      { name: 'scripts empty', pass: result.scripts.length === 0 },
+      { name: 'commands empty', pass: result.commands.length === 0 },
+      { name: 'total duration 0', pass: result.totalDurationMs === 0 },
+      { name: 'no crash', pass: true },
+    ];
+  },
+});
+
+// ── Test 14: Turn blocks ──
+testCases.push({
+  name: 'Turn blocks (cw and ccw)',
+  description: 'when_clicked → turn_cw 30° → turn_ccw 45°',
+  build: () => {
+    return linkStack([
+      makeBlock('when_clicked', {}),
+      makeBlock('turn_cw', { '%1': 30 }),
+      makeBlock('turn_ccw', { '%1': 45 }),
+    ]);
+  },
+  check: (result) => {
+    const acts = result.scripts[0]?.timeline || [];
+    const cw = acts.find(a => a.type === 'turn' && a.params?.direction === 'cw');
+    const ccw = acts.find(a => a.type === 'turn' && a.params?.direction === 'ccw');
+    return [
+      { name: 'turn_cw action exists', pass: !!cw },
+      { name: 'turn_cw degrees = 30', pass: cw?.params?.degrees === 30 },
+      { name: 'turn_ccw action exists', pass: !!ccw },
+      { name: 'turn_ccw degrees = 45', pass: ccw?.params?.degrees === 45 },
+    ];
+  },
+});
+
+// ── Test 15: Multiple stacks ──
+testCases.push({
+  name: 'Multiple independent stacks',
+  description: 'Two root stacks: (1) when_clicked → say "Hi" (2) when_clicked → jump',
+  build: () => {
+    const stack1 = linkStack([
+      makeBlock('when_clicked', {}),
+      makeBlock('say', { '%1': 'Hi!', '%2': 1 }),
+    ]);
+    const stack2 = linkStack([
+      makeBlock('when_clicked', {}),
+      makeBlock('jump', {}),
+    ]);
+    return [...stack1, ...stack2];
+  },
+  check: (result) => {
+    return [
+      { name: '2 scripts generated', pass: result.scripts.length === 2 },
+      { name: 'both triggers are on_click', pass: result.scripts.every(s => s.trigger === 'on_click') },
+      { name: 'stack 1 has say action', pass: result.scripts[0].timeline.some(a => a.type === 'say') },
+      { name: 'stack 2 has jump action', pass: result.scripts[1].timeline.some(a => a.type === 'jump') },
+    ];
+  },
+});
+
+// ─────────────────────────────────────────────
+//  UI LOGIC
+// ─────────────────────────────────────────────
+
+const testListEl = document.getElementById('test-list');
+const outputDisplay = document.getElementById('output-display');
+const lgspDisplay = document.getElementById('lgsp-display');
+const phaserDisplay = document.getElementById('phaser-display');
+const commandsDisplay = document.getElementById('commands-display');
+const statusDot = document.getElementById('status-dot');
+const statusText = document.getElementById('status-text');
+const elapsedEl = document.getElementById('elapsed');
+const testCountEl = document.getElementById('test-count');
+const testResultsEl = document.getElementById('test-results');
+
+let testResults = [];
+let allPassed = true;
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function syntaxHighlight(json) {
+  if (typeof json !== 'string') {
+    json = JSON.stringify(json, null, 2);
+  }
+  json = escapeHtml(json);
+  json = json.replace(/"([^"]+)":/g, '<span class="key">"$1"</span>:');
+  json = json.replace(/: "([^"]+)"/g, (m, p1) => {
+    if (p1.match(/^[a-zA-Z_/]/) && p1.length > 40) {
+      return ': <span class="str">"' + escapeHtml(p1) + '"</span>';
+    }
+    return ': <span class="str">"' + escapeHtml(p1) + '"</span>';
+  });
+  json = json.replace(/: (-?\d+\.?\d*)/g, ': <span class="num">$1</span>');
+  json = json.replace(/: (true|false)/g, ': <span class="bool">$1</span>');
+  json = json.replace(/: (null)/g, ': <span class="null">$1</span>');
+  json = json.replace(/([\[\]\{\},])/g, '<span class="punctuation">$1</span>');
+  return json;
+}
+
+function setStatus(state, text) {
+  const colors = { ready: 'gray', running: 'yellow', pass: 'green', fail: 'red' };
+  statusDot.className = 'dot ' + (colors[state] || 'gray');
+  statusText.textContent = text;
+}
+
+function renderTests() {
+  testListEl.innerHTML = '';
+  
+  // Run All button
+  const runAllBtn = document.createElement('button');
+  runAllBtn.className = 'btn-run-all';
+  runAllBtn.textContent = '▶ Run All (' + testCases.length + ' tests)';
+  runAllBtn.addEventListener('click', () => runAllTests());
+  testListEl.appendChild(runAllBtn);
+
+  testCases.forEach((tc, idx) => {
+    const div = document.createElement('div');
+    div.className = 'test-case';
+    div.dataset.index = idx;
+
+    const header = document.createElement('div');
+    header.className = 'test-header';
+
+    const badge = document.createElement('span');
+    badge.className = 'test-badge pending';
+    badge.textContent = '?';
+    badge.id = 'badge-' + idx;
+
+    const name = document.createElement('span');
+    name.className = 'test-name';
+    name.textContent = tc.name;
+
+    const detail = document.createElement('span');
+    detail.className = 'test-detail';
+    detail.textContent = tc.description || '';
+
+    const runBtn = document.createElement('button');
+    runBtn.className = 'btn-run-one';
+    runBtn.textContent = '▶';
+    runBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      runSingleTest(idx);
+    });
+
+    header.appendChild(badge);
+    header.appendChild(name);
+    header.appendChild(detail);
+    header.appendChild(runBtn);
+    div.appendChild(header);
+
+    const output = document.createElement('div');
+    output.className = 'test-output';
+    output.id = 'testout-' + idx;
+    div.appendChild(output);
+
+    // Click header to toggle output
+    header.addEventListener('click', () => {
+      output.classList.toggle('open');
+    });
+
+    testListEl.appendChild(div);
+  });
+}
+
+function setBadge(idx, status) {
+  const badge = document.getElementById('badge-' + idx);
+  if (!badge) return;
+  const icons = { pass: '✓', fail: '✗', run: '▶', pending: '?' };
+  badge.className = 'test-badge ' + status;
+  badge.textContent = icons[status] || '?';
+}
+
+function setOutput(idx, lines) {
+  const el = document.getElementById('testout-' + idx);
+  if (!el) return;
+  el.innerHTML = lines.map(l => {
+    const cls = l.startsWith('✓') ? 'success' : l.startsWith('✗') ? 'error' : 'info';
+    return '<div class="' + cls + '">' + escapeHtml(l) + '</div>';
+  }).join('');
+  el.classList.add('open');
+}
+
+function updateTestCount() {
+  const passed = testResults.filter(r => r.every(t => t.pass)).length;
+  const failed = testResults.filter(r => r.some(t => !t.pass)).length;
+  const total = testResults.length;
+  testCountEl.textContent = passed + ' / ' + total + ' passed';
+  if (total === 0) return;
+  if (failed === 0) {
+    testResultsEl.innerHTML = '<span style="color:var(--green)">✓ All passed</span>';
+  } else {
+    testResultsEl.innerHTML = '<span style="color:var(--red)">✗ ' + failed + ' failed</span>';
+  }
+}
+
+// ─────────────────────────────────────────────
+//  TEST RUNNER
+// ─────────────────────────────────────────────
+
+function runSingleTest(idx) {
+  const tc = testCases[idx];
+  setBadge(idx, 'run');
+  setStatus('running', 'Running test ' + (idx + 1) + '...');
+  
+  try {
+    const instances = tc.build();
+    
+    let result;
+    if (idx === 6) {
+      // LGSP manifest test
+      result = compileToLgspManifest(instances, {
+        gameId: 'test-game',
+        displayName: 'Test Game',
+      });
+    } else if (idx >= 8 && idx <= 10) {
+      // LGSP wire format tests - these run their own check functions
+      const checks = tc.check();
+      testResults[idx] = checks;
+      const passed = checks.every(t => t.pass);
+      setBadge(idx, passed ? 'pass' : 'fail');
+      setOutput(idx, checks.map(t => (t.pass ? '✓ ' : '✗ ') + t.name));
+      setStatus(passed ? 'pass' : 'fail', passed ? 'All passed' : 'Some tests failed');
+      appendOutput('info', '── Test ' + (idx + 1) + ': ' + tc.name + ' ──');
+      checks.forEach(t => {
+        appendOutput(t.pass ? 'success' : 'error', (t.pass ? '  ✓ ' : '  ✗ ') + t.name);
+      });
+      updateTestCount();
+      allPassed = allPassed && passed;
+      return;
+    } else if (idx === 11) {
+      // Phaser scene config - compile then build scene config
+      const compiled = compileBlockStacks(instances);
+      const sceneCfg = buildPhaserSceneConfig(compiled);
+      // Show the scene config
+      phaserDisplay.innerHTML = syntaxHighlight(JSON.stringify(sceneCfg, null, 2));
+      result = compiled;
+    } else {
+      // Standard block compilation test
+      result = compileBlockStacks(instances);
+    }
+
+    const checks = tc.check(result);
+    testResults[idx] = checks;
+    const passed = checks.every(t => t.pass);
+
+    setBadge(idx, passed ? 'pass' : 'fail');
+    setOutput(idx, checks.map(t => (t.pass ? '✓ ' : '✗ ') + t.name));
+    setStatus(passed ? 'pass' : 'fail', passed ? 'All passed' : 'Some tests failed');
+    appendOutput('info', '── Test ' + (idx + 1) + ': ' + tc.name + ' ──');
+    checks.forEach(t => {
+      appendOutput(t.pass ? 'success' : 'error', (t.pass ? '  ✓ ' : '  ✗ ') + t.name);
+    });
+
+    // Update specific tab displays for interesting tests
+    if (idx === 5) {
+      lgspDisplay.innerHTML = syntaxHighlight(JSON.stringify(compileToLgspManifest(instances, {gameId: 'full-game', displayName: 'Full Game'}), null, 2));
+      commandsDisplay.innerHTML = syntaxHighlight(JSON.stringify(result.commands, null, 2));
+    }
+    
+    updateTestCount();
+    allPassed = allPassed && passed;
+  } catch (err) {
+    setBadge(idx, 'fail');
+    setOutput(idx, ['✗ ERROR: ' + err.message, '  ' + err.stack]);
+    setStatus('fail', 'Error: ' + err.message);
+    testResults[idx] = [{ name: 'no crash', pass: false }];
+    appendOutput('error', '── Test ' + (idx + 1) + ': ' + tc.name + ' ── ERROR ──');
+    appendOutput('error', '  ' + err.message);
+    allPassed = false;
+    updateTestCount();
+  }
+}
+
+async function runAllTests() {
+  const startTime = performance.now();
+  allPassed = true;
+  testResults = [];
+  outputDisplay.innerHTML = '<span class="comment">// Running all ' + testCases.length + ' tests...</span>\n';
+  setStatus('running', 'Running all tests...');
+
+  for (let idx = 0; idx < testCases.length; idx++) {
+    runSingleTest(idx);
+    // Small yield to keep UI responsive
+    await new Promise(r => setTimeout(r, 10));
+  }
+
+  const elapsed = ((performance.now() - startTime) / 1000).toFixed(2) + 's';
+  elapsedEl.textContent = elapsed;
+
+  if (allPassed) {
+    appendOutput('success', '\n✓ All ' + testCases.length + ' tests passed! (' + elapsed + ')');
+    setStatus('pass', 'All ' + testCases.length + ' tests passed in ' + elapsed);
+  } else {
+    appendOutput('error', '\n✗ Some tests failed! (' + elapsed + ')');
+    setStatus('fail', 'Some tests failed (' + elapsed + ')');
+  }
+}
+
+// ─────────────────────────────────────────────
+//  OUTPUT HELPERS
+// ─────────────────────────────────────────────
+
+function appendOutput(cls, text) {
+  const line = document.createElement('div');
+  if (cls === 'success') line.style.color = '#8aff8a';
+  else if (cls === 'error') line.style.color = '#ff6b6b';
+  else line.style.color = '#8888aa';
+  line.style.padding = '1px 0';
+  line.textContent = String(text);
+  outputDisplay.appendChild(line);
+  outputDisplay.scrollTop = outputDisplay.scrollHeight;
+}
+
+// ─────────────────────────────────────────────
+//  TAB SWITCHING
+// ─────────────────────────────────────────────
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ─────────────────────────────────────────────
+//  INIT
+// ─────────────────────────────────────────────
+
+renderTests();
+setStatus('ready', 'Ready — click ▶ Run All or individual tests');
+appendOutput('info', '// Block → Phaser Compiler Test Suite');
+appendOutput('info', '// 15 test cases covering all block types, LGSP format, and edge cases');
+appendOutput('info', '// Click ▶ Run All above to execute all tests.');
+</script>
+</body>
+</html>
